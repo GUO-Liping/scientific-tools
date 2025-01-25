@@ -1,3 +1,7 @@
+# python coding
+# 根据文献中对国标中常见钢材的试验结果计算其应变率效应
+# 具体来说，计算HPB235, HRB335, HRB400, HRB500钢材的C值与P值
+
 import numpy as np
 from scipy.stats import linregress
 
