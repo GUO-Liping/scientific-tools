@@ -4,21 +4,17 @@
 
 ## 步骤1：安装Windows Terminal
 
-前往 [Windows Terminal - Microsoft Store 应用程序](https://link.juejin.cn/?target=https%3A%2F%2Fapps.microsoft.com%2Fstore%2Fdetail%2Fwindows-terminal%2F9N0DX20HK701%3Fhl%3Dzh-cn%26gl%3Dcn)， 点击获取；
+前往 [Windows Terminal - Microsoft Store 应用程序](https://link.juejin.cn/?target=https%3A%2F%2Fapps.microsoft.com%2Fstore%2Fdetail%2Fwindows-terminal%2F9N0DX20HK701%3Fhl%3Dzh-cn%26gl%3Dcn)， 点击下载/获取；
 
 ## 步骤2：安装字体
 
-进入[Nerd Fonts - Iconic font aggregator, glyphs/icons collection, & fonts patcher](https://link.juejin.cn/?target=https%3A%2F%2Fwww.nerdfonts.com%2Ffont-downloads)，下载喜欢的字体，例如，选择：Caskaydia Cove Nerd Font。下载解压后，打开“C:\Windows\Fonts”文件夹，将解压后.ttf格式的字体粘贴进去；
+进入[Nerd Fonts - Iconic font aggregator, glyphs/icons collection, & fonts patcher](https://link.juejin.cn/?target=https%3A%2F%2Fwww.nerdfonts.com%2Ffont-downloads)，下载喜欢的字体，例如，选择：Caskaydia Cove Nerd Font。下载解压后，打开“C:\Windows\Fonts”文件夹，将解压后.ttf格式的字体粘贴进去；打开：Windows Terminal设置→配置文件→默认值→外观→选择字体（例如：Caskaydia Cove NF）
 
-## 步骤3： 修改Windows Terminal字体
+## 步骤3：安装Powershell
 
-打开：Windows Terminal设置→配置文件→默认值→外观→选择字体（例如：Caskaydia Cove NF）
+前往[PowerShell - Microsoft Store应用商店](https://apps.microsoft.com/detail/9mz1snwt0n5d?hl=zh-cn&gl=CN)，点击下载/获取。然后，启动Windows Terminal→默认配置文件→选择`PowerShell`(请注意，不是`Windows Powershell`)；
 
-## 步骤4：安装Powershell
-
-根据[Installing PowerShell on Windows - PowerShell | Microsoft Docs](https://link.juejin.cn/?target=https%3A%2F%2Fdocs.microsoft.com%2Fzh-cn%2Fpowershell%2Fscripting%2Finstall%2Finstalling-powershell-on-windows%3Fview%3Dpowershell-7.2%23msstore) 按照这个页面的提示，安装Powershell。然后，启动Windows Terminal→默认配置文件→选择`PowerShell`(请注意，不是`Windows Powershell`)；
-
-## 步骤5：安装oh-my-posh，posh-git和Readline
+## 步骤4：安装oh-my-posh，posh-git和Readline
 
 逐行输入以下命令
 
@@ -29,7 +25,7 @@ PowerShellGet\Install-Module posh-git -Scope CurrentUser -Force
 Install-Module PSReadLine
 ```
 
-## 步骤6：修改配置文件-选择主题风格
+## 步骤5：修改配置文件-选择主题风格
 
 打开Windows Terminal，输入：
 
