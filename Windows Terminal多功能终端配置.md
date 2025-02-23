@@ -10,7 +10,7 @@
 
 进入[Nerd Fonts - Iconic font aggregator, glyphs/icons collection, & fonts patcher](https://link.juejin.cn/?target=https%3A%2F%2Fwww.nerdfonts.com%2Ffont-downloads)，下载喜欢的字体，例如，选择：Caskaydia Cove Nerd Font。下载解压后，打开“C:\Windows\Fonts”文件夹，将解压后.ttf格式的字体粘贴进去；打开：Windows Terminal设置→配置文件→默认值→外观→选择字体（例如：Caskaydia Cove NF）
 
-## 步骤3：安装Powershell
+## 步骤3：配置Powershell
 
 前往[PowerShell - Microsoft Store应用商店](https://apps.microsoft.com/detail/9mz1snwt0n5d?hl=zh-cn&gl=CN)，点击下载/获取。然后，启动Windows Terminal→默认配置文件→选择`PowerShell`(请注意，不是`Windows Powershell`)；
 
