@@ -1,156 +1,171 @@
-# -*- coding: UTF-8 -*-
 import sys
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QLabel, QComboBox,
+    QLineEdit, QPushButton, QTextEdit, QVBoxLayout, QHBoxLayout, QFormLayout
+)
+from PyQt5.QtCore import Qt
 import numpy as np
-from PyQt5.QtWidgets import (QApplication, QComboBox, QFormLayout, QHBoxLayout,
-                             QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget, QMainWindow, QSplitter)
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
 
 import matplotlib
 matplotlib.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文字体
 matplotlib.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
-def multi_pulse_load(t, pulse_type, amplitude, duration, interval, n_pulses):
-    load = 0
-    for i in range(n_pulses):
-        start = i * interval
-        end = start + duration
-        if start <= t <= end:
-            t_rel = t - start
-            if pulse_type == "短时间矩形脉冲":
-                load += amplitude
-            elif pulse_type == "三角脉冲":
-                if t_rel < duration / 2:
-                    load += 2 * amplitude * t_rel / duration
-                else:
-                    load += 2 * amplitude * (duration - t_rel) / duration
-            elif pulse_type == "正弦脉冲":
-                load += amplitude * np.sin(np.pi * t_rel / duration)
-    return load
+class MultiImpactLoad:
+    def generate_impact_series(self, load_type, params, t_array, num_impacts, interval):
+        force = np.zeros_like(t_array)
+        for i in range(num_impacts):
+            t_shift = i * interval
+            for j, t in enumerate(t_array):
+                t_local = t - t_shift
+                if t_local < 0:
+                    continue
+                if load_type == "矩形冲击":
+                    A, D = params
+                    if t_local <= D:
+                        force[j] += A
+                elif load_type == "三角冲击":
+                    A, D = params
+                    if 0 <= t_local <= D:
+                        force[j] += A * (1 - abs((2 * t_local / D) - 1))
+                elif load_type == "正弦冲击":
+                    A, f, D = params
+                    if 0 <= t_local <= D:
+                        force[j] += A * np.sin(2 * np.pi * f * t_local)
+        return force
 
-def simulate_response(m, c, k, pulse_type, amplitude, duration, interval, n_pulses, t_end=10.0, dt=0.001):
-    N = int(t_end / dt)
-    t = np.linspace(0, t_end, N)
-    x = np.zeros(N)
-    v = np.zeros(N)
 
-    def deriv(xi, vi, time):
-        F = multi_pulse_load(time, pulse_type, amplitude, duration, interval, n_pulses)
-        return (F - c * vi - k * xi) / m
+class MultiDOFResponse:
+    def response(self, force, t, m=1.0, c=0.05, k=10.0):
+        dt = t[1] - t[0]
+        n = len(t)
+        u = np.zeros(n)
+        v = np.zeros(n)
+        a = np.zeros(n)
 
-    for i in range(N - 1):
-        ti = t[i]
-        xi = x[i]
-        vi = v[i]
+        a[0] = (force[0] - c * v[0] - k * u[0]) / m
+        for i in range(1, n):
+            a[i] = (force[i] - c * v[i - 1] - k * u[i - 1]) / m
+            v[i] = v[i - 1] + a[i] * dt
+            u[i] = u[i - 1] + v[i] * dt
 
-        k1_v = deriv(xi, vi, ti)
-        k1_x = vi
+        return u, v, a
 
-        k2_v = deriv(xi + dt * k1_x / 2, vi + dt * k1_v / 2, ti + dt / 2)
-        k2_x = vi + dt * k1_v / 2
 
-        k3_v = deriv(xi + dt * k2_x / 2, vi + dt * k2_v / 2, ti + dt / 2)
-        k3_x = vi + dt * k2_v / 2
-
-        k4_v = deriv(xi + dt * k3_x, vi + dt * k3_v, ti + dt)
-        k4_x = vi + dt * k3_v
-
-        x[i + 1] = xi + dt * (k1_x + 2 * k2_x + 2 * k3_x + k4_x) / 6
-        v[i + 1] = vi + dt * (k1_v + 2 * k2_v + 2 * k3_v + k4_v) / 6
-
-    return t, x
-
-class MainWindow(QMainWindow):
+class ImpactResponseApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("多次冲击下多自由度系统动力分析程序")
+        self.setWindowTitle("多次连续冲击结构响应分析器")
+        self.setGeometry(100, 100, 1000, 700)
+
+        self.load_model = MultiImpactLoad()
+        self.response_model = MultiDOFResponse()
         self.initUI()
 
     def initUI(self):
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout()
-        central_widget.setLayout(main_layout)
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
 
-        form_layout = QFormLayout()
-        self.mass_input = QLineEdit("1.0")
-        self.damping_input = QLineEdit("0.2")
-        self.stiffness_input = QLineEdit("10.0")
-        self.amplitude_input = QLineEdit("5.0")
-        self.duration_input = QLineEdit("0.1")
-        self.n_pulses_input = QLineEdit("3")
-        self.interval_input = QLineEdit("1.0")
+        layout = QHBoxLayout()
+        controls = QVBoxLayout()
+        form = QFormLayout()
 
-        form_layout.addRow("质量 m (kg):", self.mass_input)
-        form_layout.addRow("阻尼 c (N·s/m):", self.damping_input)
-        form_layout.addRow("刚度 k (N/m):", self.stiffness_input)
-        form_layout.addRow("脉冲幅值 (N):", self.amplitude_input)
-        form_layout.addRow("持续时间 (s):", self.duration_input)
-        form_layout.addRow("脉冲个数:", self.n_pulses_input)
-        form_layout.addRow("脉冲间隔 (s):", self.interval_input)
+        self.load_type = QComboBox()
+        self.load_type.addItems(["矩形冲击", "三角冲击", "正弦冲击"])
+        form.addRow("冲击类型:", self.load_type)
 
-        self.load_type_combo = QComboBox()
-        self.load_type_combo.addItems(["短时间矩形脉冲", "三角脉冲", "正弦脉冲"])
-        form_layout.addRow("脉冲荷载形式:", self.load_type_combo)
+        self.inputs = {
+            "amplitude": QLineEdit("10"),
+            "duration": QLineEdit("0.2"),
+            "frequency": QLineEdit("5.0"),
+            "interval": QLineEdit("1.0"),
+            "num_impacts": QLineEdit("3"),
+            "mass": QLineEdit("1.0"),
+            "damping": QLineEdit("0.05"),
+            "stiffness": QLineEdit("10.0"),
+            "t_max": QLineEdit("5.0"),
+            "dt": QLineEdit("0.001")
+        }
 
-        self.run_button = QPushButton("运行分析")
-        self.run_button.clicked.connect(self.run_analysis)
+        for key, widget in self.inputs.items():
+            form.addRow(f"{key.replace('_', ' ').capitalize()}:", widget)
 
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(self.run_button)
+        controls.addLayout(form)
 
-        splitter = QSplitter()
+        self.calc_button = QPushButton("计算并绘图")
+        self.calc_button.clicked.connect(self.calculate_and_plot)
+        controls.addWidget(self.calc_button)
 
-        self.response_fig = Figure(figsize=(5, 4), dpi=100)
-        self.response_canvas = FigureCanvas(self.response_fig)
+        self.result_box = QTextEdit()
+        self.result_box.setReadOnly(True)
+        controls.addWidget(QLabel("结果输出:"))
+        controls.addWidget(self.result_box)
 
-        self.load_fig = Figure(figsize=(5, 4), dpi=100)
-        self.load_canvas = FigureCanvas(self.load_fig)
+        layout.addLayout(controls, 3)
 
-        splitter.addWidget(self.response_canvas)
-        splitter.addWidget(self.load_canvas)
-        splitter.setSizes([400, 400])
+        self.fig, self.axs = plt.subplots(4, 1, figsize=(6, 8))
+        self.canvas = FigureCanvas(self.fig)
+        layout.addWidget(self.canvas, 6)
 
-        main_layout.addWidget(splitter)
+        main_widget.setLayout(layout)
 
-    def run_analysis(self):
+    def calculate_and_plot(self):
         try:
-            m = float(self.mass_input.text())
-            c = float(self.damping_input.text())
-            k = float(self.stiffness_input.text())
-            amplitude = float(self.amplitude_input.text())
-            duration = float(self.duration_input.text())
-            n_pulses = int(self.n_pulses_input.text())
-            interval = float(self.interval_input.text())
-            pulse_type = self.load_type_combo.currentText()
-        except ValueError:
-            print("\u8f93\u5165\u53c2\u6570\u6709\u8bef")
-            return
+            load_type = self.load_type.currentText()
+            A = float(self.inputs["amplitude"].text())
+            D = float(self.inputs["duration"].text())
+            f = float(self.inputs["frequency"].text())
+            interval = float(self.inputs["interval"].text())
+            num = int(self.inputs["num_impacts"].text())
+            m = float(self.inputs["mass"].text())
+            c = float(self.inputs["damping"].text())
+            k = float(self.inputs["stiffness"].text())
+            t_max = float(self.inputs["t_max"].text())
+            dt = float(self.inputs["dt"].text())
 
-        t_end = n_pulses * interval + 5.0
-        t, x = simulate_response(m, c, k, pulse_type, amplitude, duration, interval, n_pulses, t_end)
-        F = np.array([multi_pulse_load(ti, pulse_type, amplitude, duration, interval, n_pulses) for ti in t])
+            t = np.arange(0, t_max, dt)
 
-        self.response_fig.clear()
-        ax1 = self.response_fig.add_subplot(111)
-        ax1.plot(t, x, label="位移响应")
-        ax1.set_xlabel("时间 (s)")
-        ax1.set_ylabel("位移 (m)")
-        ax1.set_title("动力响应")
-        ax1.legend()
-        self.response_canvas.draw()
+            if load_type == "正弦冲击":
+                params = (A, f, D)
+            else:
+                params = (A, D)
 
-        self.load_fig.clear()
-        ax2 = self.load_fig.add_subplot(111)
-        ax2.plot(t, F, label="冲击荷载")
-        ax2.set_xlabel("时间 (s)")
-        ax2.set_ylabel("荷载 (N)")
-        ax2.set_title("冲击荷载曲线")
-        ax2.legend()
-        self.load_canvas.draw()
+            force = self.load_model.generate_impact_series(load_type, params, t, num, interval)
+            u, v, a = self.response_model.response(force, t, m, c, k)
 
-if __name__ == "__main__":
+            self.axs[0].clear()
+            self.axs[0].plot(t, force, label="冲击荷载")
+            self.axs[0].set_title("冲击荷载")
+            self.axs[0].grid(True)
+
+            self.axs[1].clear()
+            self.axs[1].plot(t, u, label="位移", color='orange')
+            self.axs[1].set_title("结构位移")
+            self.axs[1].grid(True)
+
+            self.axs[2].clear()
+            self.axs[2].plot(t, v, label="速度", color='green')
+            self.axs[2].set_title("结构速度")
+            self.axs[2].grid(True)
+
+            self.axs[3].clear()
+            self.axs[3].plot(t, a, label="加速度", color='red')
+            self.axs[3].set_title("结构加速度")
+            self.axs[3].set_xlabel("时间 (s)")
+            self.axs[3].grid(True)
+
+            self.fig.tight_layout()
+            self.canvas.draw()
+
+            self.result_box.setText("计算完成，已显示各响应图像。")
+
+        except Exception as e:
+            self.result_box.setText(f"错误: {str(e)}")
+
+
+if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = MainWindow()
+    window = ImpactResponseApp()
     window.show()
     sys.exit(app.exec_())
