@@ -71,7 +71,7 @@ class StructuralResponseCalculator:
 class SteelStructureApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("钢结构脉冲荷载计算器")
+        self.setWindowTitle("Structural Impact Toolbox V1.0")
         self.setGeometry(100, 100, 900, 600)
 
         self.calculator = PulseLoadCalculator()

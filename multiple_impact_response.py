@@ -56,7 +56,7 @@ class MultiDOFResponse:
 class ImpactResponseApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("多次连续冲击结构响应分析器")
+        self.setWindowTitle("Structural Impact Toolbox V2.0")
         self.setGeometry(100, 100, 1000, 700)
 
         self.load_model = MultiImpactLoad()
