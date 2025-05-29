@@ -98,36 +98,39 @@ def print_circle_info(circles):
 if __name__ == '__main__':
     # 输入参数——全局变量
     # 桥墩参数
-    pier_width = 2.2
-    pier_height = 2.5
+    pier_width = 1.8
+    pier_height = 1.5
     pier_modulus = 20e9
 
     # 碎屑颗粒流参数
     radius_min = 0.3
-    radius_max = 0.6
+    radius_max = 1.2
     particle_modulus = 20e9  # 弹性模量，国际单位：Pa
-    particle_velocity = 10  # 颗粒速度，国际单位：m/s
+    particle_velocity = 9.5  # 颗粒速度，国际单位：m/s
     particle_dencity = 2500  # 颗粒密度，国际单位：kg/m3
 
     # 等效参数
     modulus_equal = 1/(1/pier_modulus + 1/particle_modulus)  # 弹性模量，国际单位：Pa
     radius_upper = radius_max
     radius_lower = radius_min + 0.0*(radius_max-radius_min)
-    N = pier_width * pier_height / (np.pi * (radius_min+radius_max)**2/4)
+    N = 1# pier_width * pier_height / ((radius_max)**2)
 
 
     # ----------------------------------------------------------------------------------------------------------------------------#
     # 弹性接触理论
     # 单个颗粒对桥墩的冲击力
     # 单位系统：N
-    force_single_e = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_max**2 * particle_dencity**(3/5) * particle_velocity**(6/5)
-    force_single_ref1 = 4/3 * (5*np.pi/4)**(3/5) * (200e9)**(2/5) * 1.0**2 * 2400**(3/5) * 5.0**(6/5)
-    print('force_single_ref1=', force_single_ref1/1000)
+    force_single_e_min = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_min**2 * particle_dencity**(3/5) * particle_velocity**(6/5)
+    force_single_e_max = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_max**2 * particle_dencity**(3/5) * particle_velocity**(6/5)
+    force_single_ref1 = 4/3 * (5*np.pi/4)**(3/5) * (20e9)**(2/5) * 0.45**2 * 2400**(3/5) * 5.0**(6/5)
+    # print('force_single_e_min=', round(force_single_e_min/1000,2), 'kN')
+    print('force_single_e_max=', round(force_single_e_max/1000,2), 'kN')
 
     # 碎屑颗粒冲击力
-    epr_elastic = 1/3*(radius_upper**3-radius_lower**3)/(radius_max-radius_min)
-    force_elastic = N * epr_elastic * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * particle_dencity**(3/5) * particle_velocity**(6/5)
-    print('epr_elastic=',epr_elastic,'N=', N, 'force_elastic=', force_elastic/1000)
+    epr_average_e = 1/3*(radius_upper**3-radius_lower**3)/(radius_max-radius_min)
+    force_average_e = epr_average_e * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * particle_dencity**(3/5) * particle_velocity**(6/5)
+    force_impact_elastic = N * force_average_e
+    print('N=', N, 'force_impact_elastic=', round(force_impact_elastic/1000,2), 'kN')
 
     # 碎屑颗粒冲击力
     # ----------------------------------------------------------------------------------------------------------------------------#
@@ -136,21 +139,24 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------------------------------------------------------------#
     # 弹塑性接触理论
     # 模型参数
-    # 单位系统 kN
-    para_c = 10
-    para_n = 1.4
+    # 单位系统：国际单位N
+    para_c = 6.47 * 1e8  # 单位N/m^para_n
+    para_n = 1.1682  # 无量纲系数
 
     # 单个颗粒对桥墩的冲击力
-    force_single_ep = para_c * ((para_n+1)/(3*para_c) * np.pi * particle_velocity**2 * radius_max**3 * particle_dencity)**(para_n/(para_n+1))
-    force_single_ref2 = para_c * ((para_n+1)/(3*para_c) * np.pi * 5.0**2 * 1.0**3 * 2400)**(para_n/(para_n+1))
-    print('force_single_ref2=', force_single_ref2)
+    force_single_ep_min = para_c * ((para_n+1)/(3*para_c) * np.pi * particle_velocity**2 * radius_min**3 * particle_dencity)**(para_n/(para_n+1))
+    force_single_ep_max = para_c * ((para_n+1)/(3*para_c) * np.pi * particle_velocity**2 * radius_max**3 * particle_dencity)**(para_n/(para_n+1))
+    force_single_ref2 = para_c * ((para_n+1)/(3*para_c) * np.pi * 5.0**2 * 0.45**3 * 2400)**(para_n/(para_n+1))
+    # print('force_single_ep_min=', round(force_single_ep_min/1000, 2), 'kN')
+    print('force_single_ep_max=', round(force_single_ep_max/1000, 2), 'kN')
 
     # 碎屑颗粒冲击力
     epr_n = (4*para_n+1) / (para_n+1)
-    epr1_elastic_plastic = 1/epr_n * (radius_upper**epr_n - radius_lower**epr_n)/(radius_max - radius_min)
-    epr2_elastic_plastic = para_c * ((para_n+1)/(3*para_c) * np.pi * particle_velocity**2 * particle_dencity)**(para_n/(para_n+1))
-    force_elastic_plastic = N * para_c * epr1_elastic_plastic * epr2_elastic_plastic
-    print('epr2_elastic_plastic=', epr2_elastic_plastic, 'N=', N, 'force_elastic_plastic=', force_elastic_plastic)
+    epr1_average_ep = (1/epr_n) * (radius_upper**epr_n - radius_lower**epr_n)/(radius_max - radius_min)
+    epr2_average_ep = para_c * ((para_n+1)/(3*para_c) * np.pi * particle_velocity**2 * particle_dencity)**(para_n/(para_n+1))
+    force_average_ep = epr1_average_ep * epr2_average_ep
+    force_impact_elastic_plastic = N * force_average_ep
+    print('N=', N, 'force_impact_elastic_plastic=', round(force_impact_elastic_plastic/1000,2), 'kN')
     # ----------------------------------------------------------------------------------------------------------------------------#
 
     #plot_circles(circles_uniform, width, height)
