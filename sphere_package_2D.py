@@ -105,35 +105,37 @@ if __name__ == '__main__':
     # 输入参数——全局变量
 
     # 桥墩参数
-    Pier_width = 1.8
-    DEM_depth = 2.5
+    Pier_width = 2.2
     Pier_modulus = 20e9
 
     # 碎屑颗粒流参数
-    radius_min = 0.3
+    radius_min = 0.6
     radius_max = 1.2
     DEM_modulus = 20e9  # 弹性模量，国际单位：Pa
-    DEM_velocity = 9.5  # 颗粒速度，国际单位：m/s
+    DEM_velocity = 9.0507  # 颗粒速度，国际单位：m/s
     DEM_dencity = 2500  # 颗粒密度，国际单位：kg/m3
-    DEM_width = 10.0  # 颗粒流动至桥墩位置的有效宽度， 国际单位：m
+
+    DEM_Volumn = 16000  # 碎屑流方量：m^3
+    DEM_Area = 1550  # 碎屑流流动区域面积：m^2
+    DEM_depth = DEM_Volumn / DEM_Area
 
     # 等效参数
     modulus_equal = 1/(1/Pier_modulus + 1/DEM_modulus)  # 弹性模量，国际单位：Pa
     #radius_up = radius_max
-    # radius_low = radius_min + 0.0*(radius_max-radius_min)
-    N = 1# Pier_width * Pier_height / ((radius_max)**2)
+    #radius_low = radius_min + 0.0*(radius_max-radius_min)
+    N = int(np.maximum((Pier_width+2*radius_max) * (DEM_depth+2*radius_max) / ((radius_min + radius_max)**2), 1))
     # ----------------------------------------------------------------------------------------------------------------------------#
     # 填充算法
     # 均匀分布
-    print("\n均匀分布:")
-    circles_uniform = fill_circles(Pier_width, DEM_depth, 2*radius_min, 2*radius_max, distribution_type='uniform')
-    radius_up = np.max(circles_uniform[:, 2])
-    radius_low = np.min(circles_uniform[:, 2])
-    prob_Space = (radius_up-radius_low)/(radius_max-radius_min)
-    prob_Time = 1/N
-    prob_ST = prob_Space * prob_Time
+    print("\n均匀分布:", '体积=', DEM_Volumn, '粒径范围=', radius_min, '~', radius_max)
+    #circles_uniform = fill_circles(Pier_width, DEM_depth, 2*radius_min, 2*radius_max, distribution_type='uniform')
+    #radius_up = np.max(circles_uniform[:, 2])
+    #radius_low = np.min(circles_uniform[:, 2])
+    prob_ST = 0.15
     print('Space-Time probability of the DEM impact the Pier', round(prob_ST, 3))
 
+    # ----------------------------------------------------------------------------------------------------------------------------#
+    cos_theta = 0.9
     # ----------------------------------------------------------------------------------------------------------------------------#
 
 
@@ -150,7 +152,7 @@ if __name__ == '__main__':
     # 碎屑颗粒冲击力
     epr_average_e = 1/3*(radius_max**3-radius_min**3)/(radius_max-radius_min)
     force_average_e = epr_average_e * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * DEM_dencity**(3/5) * DEM_velocity**(6/5)
-    force_impact_elastic = N * prob_ST * force_average_e
+    force_impact_elastic = N * prob_ST * cos_theta * force_average_e
     print('N=', N, 'force_impact_elastic=', round(force_impact_elastic/1000,2), 'kN')
 
     # 碎屑颗粒冲击力
@@ -176,12 +178,12 @@ if __name__ == '__main__':
     epr1_average_ep = (1/epr_n) * (radius_max**epr_n - radius_min**epr_n)/(radius_max - radius_min)
     epr2_average_ep = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * DEM_dencity)**(para_n/(para_n+1))
     force_average_ep = epr1_average_ep * epr2_average_ep
-    force_impact_elastic_plastic = N * prob_ST * force_average_ep
+    force_impact_elastic_plastic = N * prob_ST * cos_theta * force_average_ep
     print('N=', N, 'force_impact_elastic_plastic=', round(force_impact_elastic_plastic/1000,2), 'kN')
     # ----------------------------------------------------------------------------------------------------------------------------#
     
-    print_circle_info(circles_uniform)
-    plot_circles(circles_uniform, Pier_width, DEM_depth)
+    #print_circle_info(circles_uniform)
+    #plot_circles(circles_uniform, Pier_width, DEM_depth)
 
 
     '''
