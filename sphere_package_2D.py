@@ -64,6 +64,9 @@ def fill_circles(width, height, d_min, d_max, distribution_type, max_attempts=10
         if is_valid_position(x, y, radius, np.array(circles)):
             circles.append((x, y, radius))
     
+    global N  # 填充的圆颗粒个数
+    N =  len(circles)
+
     return np.array(circles)
 
 def plot_circles(circles, width, height):
@@ -83,8 +86,7 @@ def plot_circles(circles, width, height):
 def print_circle_info(circles):
     """打印圆的信息"""
     diameters = circles[:, 2] * 2  # 计算每个圆的直径
-    global N  # 填充的圆颗粒个数
-    N =  len(circles)
+
     print(f"填充的圆的数量: {N}")
     # print(f"圆的直径: {diameters}")
     print(f"最小直径: {diameters.min():.2f}, 最大直径: {diameters.max():.2f}, 平均直径: {diameters.mean():.2f}")
@@ -127,11 +129,11 @@ if __name__ == '__main__':
     circles_uniform = fill_circles(Pier_width, DEM_depth, 2*radius_min, 2*radius_max, distribution_type='uniform')
     radius_up = np.max(circles_uniform[:, 2])
     radius_low = np.min(circles_uniform[:, 2])
-    prob_imp = Pier_width/DEM_width * (radius_up-radius_low)/(radius_max-radius_min)
-    print('Space-Time probability of the DEM impact the Pier', round(prob_imp, 3))
-    
-    print_circle_info(circles_uniform)
-    plot_circles(circles_uniform, Pier_width, DEM_depth)
+    prob_Space = (radius_up-radius_low)/(radius_max-radius_min)
+    prob_Time = 1/N
+    prob_ST = prob_Space * prob_Time
+    print('Space-Time probability of the DEM impact the Pier', round(prob_ST, 3))
+
     # ----------------------------------------------------------------------------------------------------------------------------#
 
 
@@ -148,7 +150,7 @@ if __name__ == '__main__':
     # 碎屑颗粒冲击力
     epr_average_e = 1/3*(radius_max**3-radius_min**3)/(radius_max-radius_min)
     force_average_e = epr_average_e * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * DEM_dencity**(3/5) * DEM_velocity**(6/5)
-    force_impact_elastic = N * prob_imp * force_average_e
+    force_impact_elastic = N * prob_ST * force_average_e
     print('N=', N, 'force_impact_elastic=', round(force_impact_elastic/1000,2), 'kN')
 
     # 碎屑颗粒冲击力
@@ -174,14 +176,13 @@ if __name__ == '__main__':
     epr1_average_ep = (1/epr_n) * (radius_max**epr_n - radius_min**epr_n)/(radius_max - radius_min)
     epr2_average_ep = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * DEM_dencity)**(para_n/(para_n+1))
     force_average_ep = epr1_average_ep * epr2_average_ep
-    force_impact_elastic_plastic = N * prob_imp * force_average_ep
+    force_impact_elastic_plastic = N * prob_ST * force_average_ep
     print('N=', N, 'force_impact_elastic_plastic=', round(force_impact_elastic_plastic/1000,2), 'kN')
     # ----------------------------------------------------------------------------------------------------------------------------#
     
+    print_circle_info(circles_uniform)
+    plot_circles(circles_uniform, Pier_width, DEM_depth)
 
-
-
-    
 
     '''
     # 均匀分布
