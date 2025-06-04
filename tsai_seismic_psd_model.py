@@ -28,8 +28,11 @@ vu_ratio = 1 / (1 + x)                 # 群速度与相速度之比，公式 (5
 # 拖曳系数与沉速计算（公式 16）
 # ------------------------
 def drag_coefficient(D):
-    Re = np.sqrt(g * D**3) / (1e-6)    # 使用粒径计算 Reynolds 数（估算）
-    return max(0.5, min(1.4, 24 / Re + 3 / np.sqrt(Re) + 0.34))  # 返回简化的 Dietrich 拖曳系数
+    Re = w_s*D/v    # 使用粒径计算 Reynolds 数（估算）
+    C_d = (rho_s - rho)*g*V / (rho*w_s**2*A)
+    if C_d < 0.5 or C_d > 1.4:
+        raise ValueError
+    return C_d  # 返回简化的 Dietrich 拖曳系数
 
 def terminal_velocity(D):
     Cd = drag_coefficient(D)           # 获取拖曳系数
@@ -71,6 +74,7 @@ def total_psd(f, H, theta, qb, W, r, D50, sg, tau_star_c=0.045):
         Vp = np.pi * D**3 / 6                      # 颗粒体积
         m = rho_s * Vp                             # 颗粒质量
         Cd = drag_coefficient(D)                   # 拖曳系数
+        print('Cd = ', Cd)
         w_st = terminal_velocity(D)                # 终端沉速
         u_star = np.sqrt(g * H * np.sin(theta))    # 床面剪切速度
         R = (rho_s - rho_f) / rho_f                # 相对密度
@@ -105,17 +109,23 @@ def plot_total_psd():
     r = 600                                   # 测站距河流距离 (m)
     D50 = 0.15                                # 中值粒径 (m)
     sg = 0.52                                 # 粒径分布宽度（对数标准差）
-    freqs = np.logspace(0.5, 2, 50)           # 频率范围：1 Hz 到 100 Hz，对数分布
-    psd_values = [total_psd(f, H, theta, qb, W, r, D50, sg) for f in freqs]  # 计算每个频率下的 PSD
-
-    plt.figure(figsize=(8, 5))                # 新建图像
-    plt.semilogx(freqs, 10 * np.log10(psd_values))  # 绘制频率 vs PSD（对数刻度）
-    plt.xlabel("Frequency (Hz)")              # 横坐标标签
-    plt.ylabel("Total PSD (dB rel. velocity power)")  # 纵坐标标签
-    plt.title("Seismic PSD from Sediment Transport (Tsai et al., 2012)")  # 图标题
-    plt.grid(True, which='both')              # 显示网格线
-    plt.tight_layout()                        # 自动优化布局
-    plt.show()                                # 显示图像
+    #freqs = np.logspace(0.1, 1.3, 50)           # 频率范围：1 Hz 到 100 Hz，对数分布
+    freqs = np.linspace(0.1, 20, 100)  # 避免从0开始导致 log(0) 错误
+    
+    # 计算对应 PSD 值
+    psd_values = [total_psd(f, H, theta, qb, W, r, D50, sg) for f in freqs]
+    
+    # 绘图
+    plt.figure(figsize=(8, 5))
+    plt.plot(freqs, 10 * np.log10(psd_values), label=f'r = {r} m')
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Total PSD (dB rel. velocity power)")
+    plt.title("Predicted PSD from Sediment Transport\n(Tsai et al., 2012 model)")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+                         # 显示图像
 
 # ------------------------
 # 执行主函数
