@@ -105,7 +105,7 @@ if __name__ == '__main__':
     Pier_modulus = 20e9
 
     # 碎屑颗粒流参数
-    radius_min = 0.3
+    radius_min = 0.9
     radius_max = 1.2
     DEM_modulus = 20e9  # 弹性模量，国际单位：Pa
     DEM_velocity = 9.0507  # 颗粒速度，国际单位：m/s
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------------------------------------------------------------#
     # 填充算法
     # 均匀分布
-    print("\n均匀分布:", '体积=', DEM_Volumn, '粒径范围=', radius_min, '~', radius_max)
+    print("\n均匀分布:", '体积=', DEM_Volumn, '粒径范围=', radius_min, '~', radius_max, '冲击厚度=', round(DEM_depth,2))
     #circles_uniform = fill_circles(Pier_width, DEM_depth, 2*radius_min, 2*radius_max, distribution_type='uniform')
     #radius_up = np.max(circles_uniform[:, 2])
     #radius_low = np.min(circles_uniform[:, 2])
