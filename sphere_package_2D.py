@@ -96,10 +96,6 @@ def print_circle_info(circles):
 
     print(f"冲击力分别为: {np.round(force_s/1000, 2)} kN, \n冲击力之和为: {np.sum(force_s/1000)} kN")
 
-def compute_probability(w, W, circles):
-    return w/W * (radius_up-radius_low)/(radius_max-radius_min)
-
-
 
 if __name__ == '__main__':
     # 输入参数——全局变量
@@ -109,13 +105,13 @@ if __name__ == '__main__':
     Pier_modulus = 20e9
 
     # 碎屑颗粒流参数
-    radius_min = 0.6
+    radius_min = 0.3
     radius_max = 1.2
     DEM_modulus = 20e9  # 弹性模量，国际单位：Pa
     DEM_velocity = 9.0507  # 颗粒速度，国际单位：m/s
     DEM_dencity = 2200  # 颗粒密度，国际单位：kg/m3
 
-    DEM_Volumn = 1000  # 碎屑流方量：m^3
+    DEM_Volumn = 16000  # 碎屑流方量：m^3
     DEM_Area = 1650  # 碎屑流流动区域面积：m^2
     DEM_depth = DEM_Volumn / DEM_Area
 
@@ -123,8 +119,9 @@ if __name__ == '__main__':
     modulus_equal = 1/(1/Pier_modulus + 1/DEM_modulus)  # 弹性模量，国际单位：Pa
     #radius_up = radius_max
     #radius_low = radius_min + 0.0*(radius_max-radius_min)
-    radius_eq = radius_min+0.5*(radius_max-radius_min)
-    N = int(np.maximum((Pier_width+2*radius_eq) * (DEM_depth+2*radius_eq) / (2*radius_eq)**2, 1))
+    radius_e_equ = (1/3 * (radius_max**3-radius_min**3)/(radius_max-radius_min))**(1/2)
+    # N = int(np.maximum((Pier_width+2*radius_eq) * (DEM_depth+2*radius_eq) / (2*radius_eq)**2, 1))
+    #print('N=', N)
     # ----------------------------------------------------------------------------------------------------------------------------#
     # 填充算法
     # 均匀分布
@@ -132,8 +129,10 @@ if __name__ == '__main__':
     #circles_uniform = fill_circles(Pier_width, DEM_depth, 2*radius_min, 2*radius_max, distribution_type='uniform')
     #radius_up = np.max(circles_uniform[:, 2])
     #radius_low = np.min(circles_uniform[:, 2])
-    prob_ST = 1/N + (1-np.exp(-0.005*N))
-    print('概率：Space-Time probability of the DEM impact the Pier', round(prob_ST, 3))
+    #prob_ST = 1/N + (1-np.exp(-0.005*N))
+    print('radius_e_equ=', radius_e_equ)
+    ratio_Area = Pier_width * DEM_depth / (Pier_width*2*radius_e_equ)
+    print('相对面积： of the DEM impact the Pier', round(ratio_Area, 3))
 
     # ----------------------------------------------------------------------------------------------------------------------------#
     cos_theta = 1
@@ -146,14 +145,16 @@ if __name__ == '__main__':
     # 单位系统：N
     force_single_e_min = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_min**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
     force_single_e_max = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_max**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
+    force_single_e_equ = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_e_equ**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
     force_single_ref1 = 4/3 * (5*np.pi/4)**(3/5) * (20e9)**(2/5) * 0.45**2 * 2400**(3/5) * 5.0**(6/5)
 
     # 碎屑颗粒冲击力
     epr_average_e = 1/3*(radius_max**3-radius_min**3)/(radius_max-radius_min)
     force_average_e = epr_average_e * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * DEM_dencity**(3/5) * DEM_velocity**(6/5)
-    force_impact_elastic = N * prob_ST * cos_theta * force_average_e
-    print('N=', N, 'force_average_e=', round(force_average_e/1000,2), 'kN')
+    force_impact_elastic = ratio_Area * cos_theta * force_average_e
     print('force_single_e_max=', round(force_single_e_max/1000,2), 'kN')
+    print('force_single_e_equ=', round(force_single_e_equ/1000,2), 'kN')
+
     print('force_impact_elastic=', round(force_impact_elastic/1000,2), 'kN')
 
     # 碎屑颗粒冲击力
@@ -166,10 +167,13 @@ if __name__ == '__main__':
     # 单位系统：国际单位N
     para_c = 6.47 * 1e8  # 单位N/m^para_n
     para_n = 1.1682  # 无量纲系数
+    k = (4*para_n+1)/(para_n+1)
+    radius_ep_equ = (1/k * (radius_max**k-radius_min**k)/(radius_max-radius_min))**((para_n+1)/(3*para_n))
 
     # 单个颗粒对桥墩的冲击力
     force_single_ep_min = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_min**3 * DEM_dencity)**(para_n/(para_n+1))
     force_single_ep_max = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_max**3 * DEM_dencity)**(para_n/(para_n+1))
+    force_single_ep_equ = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_ep_equ**3 * DEM_dencity)**(para_n/(para_n+1))
     force_single_ref2 = para_c * ((para_n+1)/(3*para_c) * np.pi * 5.0**2 * 0.45**3 * 2400)**(para_n/(para_n+1))
     # print('force_single_ep_min=', round(force_single_ep_min/1000, 2), 'kN')
 
@@ -178,9 +182,10 @@ if __name__ == '__main__':
     epr1_average_ep = (1/epr_n) * (radius_max**epr_n - radius_min**epr_n)/(radius_max - radius_min)
     epr2_average_ep = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * DEM_dencity)**(para_n/(para_n+1))
     force_average_ep = epr1_average_ep * epr2_average_ep
-    force_impact_elastic_plastic = N * prob_ST * cos_theta * force_average_ep
-    print('N=', N, 'force_average_ep=', round(force_average_ep/1000,2), 'kN')
+    force_impact_elastic_plastic = ratio_Area * cos_theta * force_average_ep
+    print('radius_ep_equ=', radius_ep_equ)
     print('force_single_ep_max=', round(force_single_ep_max/1000, 2), 'kN')
+    print('force_single_ep_equ=', round(force_single_ep_equ/1000, 2), 'kN')
     print('force_impact_elastic_plastic=', round(force_impact_elastic_plastic/1000,2), 'kN')
     # ----------------------------------------------------------------------------------------------------------------------------#
     
