@@ -100,138 +100,139 @@ def print_circle_info(circles):
 if __name__ == '__main__':
     # 输入参数——全局变量
 
-    # 桥墩参数
-    Pier_width = 2.2
-    Pier_modulus = 20e9
+    for DEM_dencity in np.array([1350,1550,1750,1950,2150]):  # 颗粒密度，国际单位：kg/m3
 
-    # 碎屑颗粒流参数
-    radius_min = 0.6
-    radius_max = 1.2
-    DEM_modulus = 20e9  # 弹性模量，国际单位：Pa
-    DEM_velocity = 9.0507  # 颗粒速度，国际单位：m/s
-    DEM_dencity = 2200  # 颗粒密度，国际单位：kg/m3
+        # 桥墩参数
+        #Pier_width = 1.8
+        Pier_modulus = 30e9
 
-    DEM_Volumn = 16000  # 碎屑流方量：m^3
-    #DEM_Area = 943.39  # 碎屑流流动区域面积：m^2
-    channel_alpha = np.radians(171)  # 滑槽角度——模型化为三角形，国际单位：degree
-    channel_lenght = 61.5  # 滑槽长度——模型化为三角形，国际单位：m
-    DEM_depth = np.sqrt(DEM_Volumn / (channel_lenght*np.tan(channel_alpha/2)))  # 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m；
-
-    # 等效参数
-    modulus_equal = 1/(1/Pier_modulus + 1/DEM_modulus)  # 弹性模量，国际单位：Pa
-    #radius_up = radius_max
-    #radius_low = radius_min + 0.0*(radius_max-radius_min)
-    if radius_max == radius_min:
-        radius_max = radius_max + 1e-6
-    else:
-        pass
-    radius_e_equ = (1/3 * (radius_max**3-radius_min**3)/(radius_max-radius_min))**(1/2)
-    # N = int(np.maximum((Pier_width+2*radius_eq) * (DEM_depth+2*radius_eq) / (2*radius_eq)**2, 1))
-    #print('N=', N)
-    # ----------------------------------------------------------------------------------------------------------------------------#
-    # 填充算法
-    # 均匀分布
-    print("\n均匀分布:", '体积=', DEM_Volumn, '粒径范围=', radius_min, '~', radius_max, '冲击厚度=', round(DEM_depth,2))
-    #circles_uniform = fill_circles(Pier_width, DEM_depth, 2*radius_min, 2*radius_max, distribution_type='uniform')
-    #radius_up = np.max(circles_uniform[:, 2])
-    #radius_low = np.min(circles_uniform[:, 2])
-    #prob_ST = 1/N + (1-np.exp(-0.005*N))
-    print('radius_e_equ=', radius_e_equ)
-    ratio_Area = Pier_width * DEM_depth / (Pier_width*2*radius_e_equ)
-    print('相对面积： of the DEM impact the Pier', round(ratio_Area, 3))
-
-    # ----------------------------------------------------------------------------------------------------------------------------#
-    cos_theta = 1
-    # ----------------------------------------------------------------------------------------------------------------------------#
-
-
-    # ----------------------------------------------------------------------------------------------------------------------------#
-    # 弹性接触理论
-    # 单个颗粒对桥墩的冲击力
-    # 单位系统：N
-    force_single_e_min = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_min**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
-    force_single_e_max = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_max**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
-    force_single_e_equ = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_e_equ**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
-    force_single_ref1 = 4/3 * (5*np.pi/4)**(3/5) * (20e9)**(2/5) * 0.45**2 * 2400**(3/5) * 5.0**(6/5)
-
-    # 碎屑颗粒冲击力
-    epr_average_e = 1/3*(radius_max**3-radius_min**3)/(radius_max-radius_min)
-    force_average_e = epr_average_e * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * DEM_dencity**(3/5) * DEM_velocity**(6/5)
-    force_impact_elastic = ratio_Area * cos_theta * force_average_e
-    print('force_single_e_max=', round(force_single_e_max/1000,2), 'kN')
-    print('force_single_e_equ=', round(force_single_e_equ/1000,2), 'kN')
-
-    print('force_impact_elastic=', round(force_impact_elastic/1000,2), 'kN')
-
-    # 碎屑颗粒冲击力
-    # ----------------------------------------------------------------------------------------------------------------------------#
+        # 碎屑颗粒流参数
+        radius_min = 0.1
+        radius_max = 0.2
+        DEM_modulus = 30e9  # 弹性模量，国际单位：Pa
+        DEM_velocity = 28.0507  # 颗粒速度，国际单位：m/s
+        for Pier_width in np.array([1.6,1.8,2,2.2,2.4]):
+            DEM_Volumn = 18  # 碎屑流方量：m^3
+            #DEM_Area = 943.39  # 碎屑流流动区域面积：m^2
+            channel_alpha = np.radians(171)  # 滑槽角度——模型化为三角形，国际单位：degree
+            channel_lenght = 50  # 滑槽长度——模型化为三角形，61.5国际单位：m
+            DEM_depth = np.sqrt(DEM_Volumn / (channel_lenght*np.tan(channel_alpha/2)))  # 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m；
     
-
-    # ----------------------------------------------------------------------------------------------------------------------------#
-    # 弹塑性接触理论
-    # 模型参数
-    # 单位系统：国际单位N
-    para_c = 6.47 * 1e8  # 单位N/m^para_n
-    para_n = 1.1682  # 无量纲系数
-    k = (4*para_n+1)/(para_n+1)
-    radius_ep_equ = (1/k * (radius_max**k-radius_min**k)/(radius_max-radius_min))**((para_n+1)/(3*para_n))
-
-    # 单个颗粒对桥墩的冲击力
-    force_single_ep_min = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_min**3 * DEM_dencity)**(para_n/(para_n+1))
-    force_single_ep_max = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_max**3 * DEM_dencity)**(para_n/(para_n+1))
-    force_single_ep_equ = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_ep_equ**3 * DEM_dencity)**(para_n/(para_n+1))
-    force_single_ref2 = para_c * ((para_n+1)/(3*para_c) * np.pi * 5.0**2 * 0.45**3 * 2400)**(para_n/(para_n+1))
-    # print('force_single_ep_min=', round(force_single_ep_min/1000, 2), 'kN')
-
-    # 碎屑颗粒冲击力
-    epr_n = (4*para_n+1) / (para_n+1)
-    epr1_average_ep = (1/epr_n) * (radius_max**epr_n - radius_min**epr_n)/(radius_max - radius_min)
-    epr2_average_ep = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * DEM_dencity)**(para_n/(para_n+1))
-    force_average_ep = epr1_average_ep * epr2_average_ep
-    force_impact_elastic_plastic = ratio_Area * cos_theta * force_average_ep
-    print('radius_ep_equ=', radius_ep_equ)
-    print('force_single_ep_max=', round(force_single_ep_max/1000, 2), 'kN')
-    print('force_single_ep_equ=', round(force_single_ep_equ/1000, 2), 'kN')
-    print('force_impact_elastic_plastic=', round(force_impact_elastic_plastic/1000,2), 'kN')
-    # ----------------------------------------------------------------------------------------------------------------------------#
+            # 等效参数
+            modulus_equal = 1/(1/Pier_modulus + 1/DEM_modulus)  # 弹性模量，国际单位：Pa
+            #radius_up = radius_max
+            #radius_low = radius_min + 0.0*(radius_max-radius_min)
+            if radius_max == radius_min:
+                radius_max = radius_max + 1e-6
+            else:
+                pass
+            radius_e_equ = (1/3 * (radius_max**3-radius_min**3)/(radius_max-radius_min))**(1/2)
+            # N = int(np.maximum((Pier_width+2*radius_eq) * (DEM_depth+2*radius_eq) / (2*radius_eq)**2, 1))
+            #print('N=', N)
+            # ----------------------------------------------------------------------------------------------------------------------------#
+            # 填充算法
+            # 均匀分布
+            #print("\n均匀分布:", '体积=', DEM_Volumn, '粒径范围=', radius_min, '~', radius_max, '冲击厚度=', round(DEM_depth,2))
+            #circles_uniform = fill_circles(Pier_width, DEM_depth, 2*radius_min, 2*radius_max, distribution_type='uniform')
+            #radius_up = np.max(circles_uniform[:, 2])
+            #radius_low = np.min(circles_uniform[:, 2])
+            #prob_ST = 1/N + (1-np.exp(-0.005*N))
+            #print('radius_e_equ=', radius_e_equ)
+            ratio_Area = Pier_width * DEM_depth / (2.2*2*radius_e_equ)
+            #print('相对面积： of the DEM impact the Pier', round(ratio_Area, 3))
     
-    #print_circle_info(circles_uniform)
-    #plot_circles(circles_uniform, Pier_width, DEM_depth)
-
-
-    '''
-    # 均匀分布
-    print("\n均匀分布:")
-    circles_uniform = fill_circles(width, height, d_min, d_max, distribution_type='uniform')
-    print_circle_info(circles_uniform)
+            # ----------------------------------------------------------------------------------------------------------------------------#
+            cos_theta = 1
+            # ----------------------------------------------------------------------------------------------------------------------------#
     
-    # 正态分布
-    print("\n正态分布:")
-    circles_normal = fill_circles(width, height, d_min, d_max, distribution_type='normal', mean=2, stddev=0.5)
-    print_circle_info(circles_normal)
-    plot_circles(circles_normal, width, height)
     
-    # 指数分布
-    print("\n指数分布:")
-    circles_exponential = fill_circles(width, height, d_min, d_max, distribution_type='exponential', scale=1)
-    print_circle_info(circles_exponential)
-    plot_circles(circles_exponential, width, height)
+            # ----------------------------------------------------------------------------------------------------------------------------#
+            # 弹性接触理论
+            # 单个颗粒对桥墩的冲击力
+            # 单位系统：N
+            force_single_e_min = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_min**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
+            force_single_e_max = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_max**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
+            force_single_e_equ = 4/3 * (5*np.pi/4)**(3/5) * (modulus_equal)**(2/5) * radius_e_equ**2 * DEM_dencity**(3/5) * DEM_velocity**(6/5)
+            force_single_ref1 = 4/3 * (5*np.pi/4)**(3/5) * (20e9)**(2/5) * 0.45**2 * 2400**(3/5) * 5.0**(6/5)
     
-    # 泊松分布
-    print("\n泊松分布:")
-    circles_poisson = fill_circles(width, height, d_min, d_max, distribution_type='poisson', lam=2)
-    print_circle_info(circles_poisson)
-    plot_circles(circles_poisson, width, height)
+            # 碎屑颗粒冲击力
+            epr_average_e = 1/3*(radius_max**3-radius_min**3)/(radius_max-radius_min)
+            force_average_e = epr_average_e * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * DEM_dencity**(3/5) * DEM_velocity**(6/5)
+            force_impact_elastic = ratio_Area * cos_theta * force_average_e
+            #print('force_average_e=', round(force_average_e/1000,2), 'kN')
+            #print('force_single_e_equ=', round(force_single_e_equ/1000,2), 'kN')
     
-    # Gamma分布
-    print("\nGamma分布:")
-    circles_gamma = fill_circles(width, height, d_min, d_max, distribution_type='gamma', shape=2, scale=1)
-    print_circle_info(circles_gamma)
-    plot_circles(circles_gamma, width, height)
+            #print('force_impact_elastic=', round(force_impact_elastic/1000,2), 'kN')
     
-    # Beta分布
-    print("\nBeta分布:")
-    circles_beta = fill_circles(width, height, d_min, d_max, distribution_type='beta', a=2, b=2)
-    print_circle_info(circles_beta)
-    plot_circles(circles_beta, width, height)
-    '''
+            # 碎屑颗粒冲击力
+            # ----------------------------------------------------------------------------------------------------------------------------#
+            
+    
+            # ----------------------------------------------------------------------------------------------------------------------------#
+            # 弹塑性接触理论
+            # 模型参数
+            # 单位系统：国际单位N
+            para_c = 6.47 * 1e8  # 单位N/m^para_n
+            para_n = 1.1682  # 无量纲系数
+            k = (4*para_n+1)/(para_n+1)
+            radius_ep_equ = (1/k * (radius_max**k-radius_min**k)/(radius_max-radius_min))**((para_n+1)/(3*para_n))
+    
+            # 单个颗粒对桥墩的冲击力
+            force_single_ep_min = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_min**3 * DEM_dencity)**(para_n/(para_n+1))
+            force_single_ep_max = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_max**3 * DEM_dencity)**(para_n/(para_n+1))
+            force_single_ep_equ = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_ep_equ**3 * DEM_dencity)**(para_n/(para_n+1))
+            force_single_ref2 = para_c * ((para_n+1)/(3*para_c) * np.pi * 5.0**2 * 0.45**3 * 2400)**(para_n/(para_n+1))
+            # print('force_single_ep_min=', round(force_single_ep_min/1000, 2), 'kN')
+    
+            # 碎屑颗粒冲击力
+            epr_n = (4*para_n+1) / (para_n+1)
+            epr1_average_ep = (1/epr_n) * (radius_max**epr_n - radius_min**epr_n)/(radius_max - radius_min)
+            epr2_average_ep = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * DEM_dencity)**(para_n/(para_n+1))
+            force_average_ep = epr1_average_ep * epr2_average_ep
+            force_impact_elastic_plastic = ratio_Area * cos_theta * force_average_ep
+            #print('radius_ep_equ=', radius_ep_equ)
+            #print('force_single_ep_max=', round(force_single_ep_max/1000, 2), 'kN')
+            #print('force_single_ep_equ=', round(force_single_ep_equ/1000, 2), 'kN')
+            print('Pier_width=',Pier_width, 'DEM_dencity=',DEM_dencity,'force_impact_elastic_plastic=', round(force_impact_elastic_plastic/1000,2), 'kN')
+            # ----------------------------------------------------------------------------------------------------------------------------#
+            
+            #print_circle_info(circles_uniform)
+            #plot_circles(circles_uniform, Pier_width, DEM_depth)
+    
+    
+            '''
+            # 均匀分布
+            print("\n均匀分布:")
+            circles_uniform = fill_circles(width, height, d_min, d_max, distribution_type='uniform')
+            print_circle_info(circles_uniform)
+            
+            # 正态分布
+            print("\n正态分布:")
+            circles_normal = fill_circles(width, height, d_min, d_max, distribution_type='normal', mean=2, stddev=0.5)
+            print_circle_info(circles_normal)
+            plot_circles(circles_normal, width, height)
+            
+            # 指数分布
+            print("\n指数分布:")
+            circles_exponential = fill_circles(width, height, d_min, d_max, distribution_type='exponential', scale=1)
+            print_circle_info(circles_exponential)
+            plot_circles(circles_exponential, width, height)
+            
+            # 泊松分布
+            print("\n泊松分布:")
+            circles_poisson = fill_circles(width, height, d_min, d_max, distribution_type='poisson', lam=2)
+            print_circle_info(circles_poisson)
+            plot_circles(circles_poisson, width, height)
+            
+            # Gamma分布
+            print("\nGamma分布:")
+            circles_gamma = fill_circles(width, height, d_min, d_max, distribution_type='gamma', shape=2, scale=1)
+            print_circle_info(circles_gamma)
+            plot_circles(circles_gamma, width, height)
+            
+            # Beta分布
+            print("\nBeta分布:")
+            circles_beta = fill_circles(width, height, d_min, d_max, distribution_type='beta', a=2, b=2)
+            print_circle_info(circles_beta)
+            plot_circles(circles_beta, width, height)
+            '''
