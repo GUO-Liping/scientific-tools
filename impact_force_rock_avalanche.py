@@ -139,7 +139,9 @@ if __name__ == '__main__':
             #prob_ST = 1/N + (1-np.exp(-0.005*N))
             #print('radius_e_equ=', radius_e_equ)
             ratio_Area = Pier_width * DEM_depth / (2.2*2*radius_e_equ)
-            #print('相对面积： of the DEM impact the Pier', round(ratio_Area, 3))
+            #ratio_Area = 0.5*np.sqrt(3)*Pier_width * DEM_depth / ((2*radius_e_equ)**2)  #根据圆柱周长上碰撞的角度修正
+
+            print('相对面积： of the DEM impact the Pier', round(ratio_Area, 3))
     
             # ----------------------------------------------------------------------------------------------------------------------------#
             cos_theta = 1
