@@ -105,8 +105,8 @@ if __name__ == '__main__':
     Pier_modulus = 20e9
 
     # 碎屑颗粒流参数
-    radius_min = 0.9
-    radius_max = 1.2
+    radius_min = 0.3
+    radius_max = 0.3
     DEM_modulus = 20e9  # 弹性模量，国际单位：Pa
     DEM_velocity = 9.0507  # 颗粒速度，国际单位：m/s
     DEM_dencity = 2200  # 颗粒密度，国际单位：kg/m3
@@ -119,6 +119,8 @@ if __name__ == '__main__':
     modulus_equal = 1/(1/Pier_modulus + 1/DEM_modulus)  # 弹性模量，国际单位：Pa
     #radius_up = radius_max
     #radius_low = radius_min + 0.0*(radius_max-radius_min)
+    if radius_max == radius_min:
+        radius_max = radius_max + 1e-6
     radius_e_equ = (1/3 * (radius_max**3-radius_min**3)/(radius_max-radius_min))**(1/2)
     # N = int(np.maximum((Pier_width+2*radius_eq) * (DEM_depth+2*radius_eq) / (2*radius_eq)**2, 1))
     #print('N=', N)
