@@ -105,15 +105,17 @@ if __name__ == '__main__':
     Pier_modulus = 20e9
 
     # 碎屑颗粒流参数
-    radius_min = 0.3
-    radius_max = 0.3
+    radius_min = 0.6
+    radius_max = 1.2
     DEM_modulus = 20e9  # 弹性模量，国际单位：Pa
     DEM_velocity = 9.0507  # 颗粒速度，国际单位：m/s
     DEM_dencity = 2200  # 颗粒密度，国际单位：kg/m3
 
     DEM_Volumn = 16000  # 碎屑流方量：m^3
-    DEM_Area = 1650  # 碎屑流流动区域面积：m^2
-    DEM_depth = DEM_Volumn / DEM_Area
+    #DEM_Area = 943.39  # 碎屑流流动区域面积：m^2
+    channel_alpha = np.radians(171)  # 滑槽角度——模型化为三角形，国际单位：degree
+    channel_lenght = 61.5  # 滑槽长度——模型化为三角形，国际单位：m
+    DEM_depth = np.sqrt(DEM_Volumn / (channel_lenght*np.tan(channel_alpha/2)))  # 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m；
 
     # 等效参数
     modulus_equal = 1/(1/Pier_modulus + 1/DEM_modulus)  # 弹性模量，国际单位：Pa
@@ -121,6 +123,8 @@ if __name__ == '__main__':
     #radius_low = radius_min + 0.0*(radius_max-radius_min)
     if radius_max == radius_min:
         radius_max = radius_max + 1e-6
+    else:
+        pass
     radius_e_equ = (1/3 * (radius_max**3-radius_min**3)/(radius_max-radius_min))**(1/2)
     # N = int(np.maximum((Pier_width+2*radius_eq) * (DEM_depth+2*radius_eq) / (2*radius_eq)**2, 1))
     #print('N=', N)
