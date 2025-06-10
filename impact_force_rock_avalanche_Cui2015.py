@@ -100,23 +100,23 @@ def print_circle_info(circles):
 if __name__ == '__main__':
     # 输入参数——全局变量
 
-    DEM_dencity = 2089  # 颗粒密度，国际单位：kg/m3
+    DEM_dencity = np.array([2089, 2296, 2148, 2123, 2111, 2093, 2005, 1586, 1829, 2116, 1931, 2113, 2144, 1590, 2240, 2095, 1706, 2051, 1980, 2074, 1961, 1877, 1810, 1849])  # 颗粒密度，国际单位：kg/m3
 
     # 桥墩参数
     Pier_width = 0.03
     Pier_modulus = 210e9
 
     # 碎屑颗粒流参数
-    radius_min = 1e-4
-    radius_max = 0.010
+    radius_min = 0.5e-3
+    radius_max = 19.0e-3
     DEM_modulus = 30e9  # 弹性模量，国际单位：Pa
-    DEM_velocity = 4.59  # 颗粒速度，国际单位：m/s
+    DEM_velocity = np.array([4.59, 4.59, 4.11, 4.59, 4.59, 4.33, 3, 5.2, 3.71, 2.36, 3.71, 2.79, 2.69, 4.33, 4.33, 4.88, 4.59, 3.9, 4.11, 4.11, 4.11, 4.33, 4.33, 3.9])  # 颗粒速度，国际单位：m/s
     #DEM_Volumn = 18  # 碎屑流方量：m^3
     ##DEM_Area = 943.39  # 碎屑流流动区域面积：m^2
     #channel_alpha = np.radians(171)  # 滑槽角度——模型化为三角形，国际单位：degree
     #channel_lenght = 50  # 滑槽长度——模型化为三角形，61.5国际单位：m
     #DEM_depth = np.sqrt(DEM_Volumn / (channel_lenght*np.tan(channel_alpha/2)))  # 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m；
-    DEM_depth = 0.104
+    DEM_depth = np.array([0.104, 0.105, 0.094, 0.097, 0.092, 0.102, 0.092, 0.081, 0.07, 0.088, 0.083, 0.103, 0.108, 0.062, 0.098, 0.09, 0.094, 0.112, 0.101, 0.106, 0.102, 0.099, 0.095, 0.082])
     
     # 等效参数
     modulus_equal = 1/(1/Pier_modulus + 1/DEM_modulus)  # 弹性模量，国际单位：Pa
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     ratio_Area = Pier_width * DEM_depth / (2.2*2*radius_e_equ)
     #ratio_Area = 0.5*np.sqrt(3)*Pier_width * DEM_depth / ((2*radius_e_equ)**2)  #根据圆柱周长上碰撞的角度修正
 
-    print('相对面积： of the DEM impact the Pier', round(ratio_Area, 3))
+    print('相对面积： of the DEM impact the Pier', np.round(ratio_Area, 3))
     
     # ----------------------------------------------------------------------------------------------------------------------------#
     cos_theta = 1
@@ -195,7 +195,7 @@ if __name__ == '__main__':
     #print('radius_ep_equ=', radius_ep_equ)
     #print('force_single_ep_max=', round(force_single_ep_max/1000, 2), 'kN')
     #print('force_single_ep_equ=', round(force_single_ep_equ/1000, 2), 'kN')
-    print('Pier_width=',Pier_width, 'DEM_dencity=',DEM_dencity,'force_impact_elastic_plastic=', round(force_impact_elastic_plastic/1000,2), 'kN')
+    print('Pier_width=',Pier_width, 'DEM_dencity=',DEM_dencity,'force_impact_elastic_plastic=', np.round(force_impact_elastic_plastic/1000,3), 'kN')
     # ----------------------------------------------------------------------------------------------------------------------------#
     
     #print_circle_info(circles_uniform)
