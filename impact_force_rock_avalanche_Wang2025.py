@@ -3,6 +3,7 @@
 # 圆的直径可服从常见的随机分布函数
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import quad
 
 
 def generate_diameter(distribution_type, d_min, d_max, rng, **params):
@@ -100,23 +101,24 @@ def print_circle_info(circles):
 if __name__ == '__main__':
     # 输入参数——全局变量
 
-    DEM_dencity = np.array([2550, 2550])  # 颗粒密度，国际单位：kg/m3
+    DEM_dencity = 2550  # 颗粒密度，国际单位：kg/m3
 
     # 桥墩参数
     Pier_width = 0.1
     Pier_modulus = 3.2e9
+    sigma_y = 30e6
 
     # 碎屑颗粒流参数
     radius_min = 4.0e-3
     radius_max = 4.0e-3
     DEM_modulus = 3.2e9  # 弹性模量，国际单位：Pa
-    DEM_velocity = np.array([1.4, 1.4])  # 颗粒速度，1.4~2.9 国际单位：m/s
+    DEM_velocity = 1.4  # 颗粒速度，1.4~2.9 国际单位：m/s
     #DEM_Volumn = 18  # 碎屑流方量：m^3
     ##DEM_Area = 943.39  # 碎屑流流动区域面积：m^2
     #channel_alpha = np.radians(171)  # 滑槽角度——模型化为三角形，国际单位：degree
     #channel_lenght = 50  # 滑槽长度——模型化为三角形，61.5国际单位：m
     #DEM_depth = np.sqrt(DEM_Volumn / (channel_lenght*np.tan(channel_alpha/2)))  # 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m；
-    DEM_depth = np.array([0.035, 0.035])  # 颗粒流厚度，0.035~0.05m
+    DEM_depth = 0.035  # 颗粒流厚度，0.035~0.05m
     
     # 等效参数
     modulus_equal = 1/(1/Pier_modulus + 1/DEM_modulus)  # 弹性模量，国际单位：Pa
@@ -169,8 +171,23 @@ if __name__ == '__main__':
     
     # 碎屑颗粒冲击力
     # ----------------------------------------------------------------------------------------------------------------------------#
-    
-    
+    # ----------------------------------------------------------------------------------------------------------------------------#
+    # 弹性-理想塑性接触理论(Thornton, 1997)
+    F_y = sigma_y**3 * np.pi**3 * radius_max**2 / (6*modulus_equal**2)
+    v_y = 1.56*(sigma_y**5 /(modulus_equal**4 * DEM_dencity))**0.5
+    E_Fy = (radius_max**3-radius_min**3)/(radius_max-radius_min) * (sigma_y**3 * np.pi**3) / (18*modulus_equal**2)
+
+    # 定义被积函数
+    A = F_y**2
+    B = 4/3*np.pi**2*sigma_y*DEM_dencity*(DEM_velocity**2 - v_y**2)
+    # 定义被积函数
+    def integrand(x, A, B):
+        return np.sqrt(A + B * x**4)
+
+    # 使用 quad 进行数值积分
+    E_Fmax, Int_error = quad(integrand, radius_min, radius_max, args=(A, B))
+
+    print('E_Fmax=', E_Fmax)
     # ----------------------------------------------------------------------------------------------------------------------------#
     # 弹塑性接触理论
     # 模型参数
