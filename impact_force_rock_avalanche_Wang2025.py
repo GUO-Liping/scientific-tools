@@ -106,7 +106,7 @@ if __name__ == '__main__':
     # 桥墩参数
     Pier_width = 0.1
     Pier_modulus = 3.38e9
-    sigma_y = 35e6  # 圆柱的屈服强度
+    sigma_y = 30e6  # 圆柱的屈服强度
 
     # 碎屑颗粒流参数
     radius_min = 4.0e-3
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     ratio_Area = Pier_width*DEM_depth*ratio_Solid / (2*radius_e_equ*2*radius_e_equ)
     #ratio_Area = 0.5*np.sqrt(3)*Pier_width * DEM_depth / ((2*radius_e_equ)**2)  #根据圆柱周长上碰撞的角度修正
 
-    print('modulus_equal=', np.round(modulus_equal, 3))
+    #print('modulus_equal=', np.round(modulus_equal, 3))
     
     # ----------------------------------------------------------------------------------------------------------------------------#
     sin_theta = np.sin(np.radians(72))
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     epr_average_e = 1/3*(radius_max**3-radius_min**3)/(radius_max-radius_min)
     force_average_e = epr_average_e * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * DEM_dencity**(3/5) * DEM_velocity**(6/5)
     force_impact_elastic = ratio_Area * sin_theta * force_average_e
-    print('force_average_e=', np.round(force_average_e,2), 'N')
+    print('Elastic Theory: average contact force=', np.round(force_average_e,2), 'N')
     #print('force_single_e_equ=', round(force_single_e_equ/1000,2), 'kN')
     
     #print('force_impact_elastic=', round(force_impact_elastic/1000,2), 'kN')
@@ -173,18 +173,21 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------------------------------------------------------------#
     # ----------------------------------------------------------------------------------------------------------------------------#
     # 弹性-理想塑性接触理论(Thornton, 1997)
+    mass_star = DEM_dencity * 4/3 * np.pi * radius_max**3
+    delta_max = (15*mass_star*DEM_velocity**2 / (16*modulus_equal*radius_max**0.5))**0.4
+    v_y1 = 3.194*(sigma_y**5 * radius_max**3 / (modulus_equal**4 * mass_star))**0.5
     v_y = 1.56*(sigma_y**5 /(modulus_equal**4 * DEM_dencity))**0.5
     F_y = sigma_y**3 * np.pi**3 * radius_max**2 / (6*modulus_equal**2)
     E_Fy = (radius_max**3-radius_min**3)/(radius_max-radius_min) * (sigma_y**3 * np.pi**3) / (18*modulus_equal**2)
-    if DEM_velocity > v_y:
-        mass_star = DEM_dencity * 4/3 * np.pi * radius_max**3
-        delta_max = (15*mass_star*DEM_velocity**2 / (16*modulus_equal*radius_max**0.5))**0.4
+    if DEM_velocity < v_y:
+        print('DEM_velocity < v_y')
+
         F_max1 = 4/3*modulus_equal**0.4*radius_max**0.2 * (15*mass_star*DEM_velocity**2/16)**0.6
-        F_max2 = 4/3*modulus_equal**0.4*radius_max**2 * (5*DEM_dencity*np.pi*DEM_velocity**2/4)**0.6
-        F_max = np.maximum(F_max1, F_max2)
-        print('F_max1=', F_max1, 'F_max2=', F_max2)
+        F_max = 4/3*modulus_equal**0.4*radius_max**2 * (5*DEM_dencity*np.pi*DEM_velocity**2/4)**0.6
+        E_Fmax = 4/9*modulus_equal**0.4 * (5*DEM_dencity*np.pi*DEM_velocity**2/4)**0.6 * (radius_max**3-radius_min**3)/(radius_max-radius_min)
 
     else:
+        print('DEM_velocity >= v_y')
         F_max = np.sqrt(F_y**2 + 4/3*np.pi**2*sigma_y*DEM_dencity*(DEM_velocity**2 - v_y**2) * radius_max**4)
 
         # 定义被积函数
@@ -197,8 +200,8 @@ if __name__ == '__main__':
         # 使用 quad 进行数值积分
         Int_value, Int_error = quad(integrand, radius_min, radius_max, args=(A, B))
         E_Fmax = 1/(radius_max-radius_min) * Int_value
-    print('v_y=', v_y, 'F_y=', F_y, 'F_max=',F_max, 'E_Fmax=', E_Fmax)
-    
+    print('v_y=', np.round(v_y, 2), 'F_y=', np.round(F_y))
+    print('Elasto-Plastic Theory: F_max=',np.round(F_max), 'average contact force=', np.round(E_Fmax))
     #print_circle_info(circles_uniform)
     #plot_circles(circles_uniform, Pier_width, DEM_depth)
     
