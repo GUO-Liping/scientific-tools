@@ -105,14 +105,14 @@ if __name__ == '__main__':
 
     # 桥墩参数
     Pier_width = 0.1
-    Pier_modulus = 3.2e9
-    sigma_y = 30e6
+    Pier_modulus = 3.38e9
+    sigma_y = 35e6  # 圆柱的屈服强度
 
     # 碎屑颗粒流参数
     radius_min = 4.0e-3
     radius_max = 4.0e-3
-    DEM_modulus = 3.2e9  # 弹性模量，国际单位：Pa
-    DEM_velocity = 1.4  # 颗粒速度，1.4~2.9 国际单位：m/s
+    DEM_modulus = 60e9  # 弹性模量，国际单位：Pa
+    DEM_velocity = 2.9  # 颗粒速度，1.4~2.9 国际单位：m/s
     #DEM_Volumn = 18  # 碎屑流方量：m^3
     ##DEM_Area = 943.39  # 碎屑流流动区域面积：m^2
     #channel_alpha = np.radians(171)  # 滑槽角度——模型化为三角形，国际单位：degree
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     ratio_Area = Pier_width*DEM_depth*ratio_Solid / (2*radius_e_equ*2*radius_e_equ)
     #ratio_Area = 0.5*np.sqrt(3)*Pier_width * DEM_depth / ((2*radius_e_equ)**2)  #根据圆柱周长上碰撞的角度修正
 
-    print('相对面积： of the DEM impact the Pier', np.round(ratio_Area, 3))
+    print('modulus_equal=', np.round(modulus_equal, 3))
     
     # ----------------------------------------------------------------------------------------------------------------------------#
     sin_theta = np.sin(np.radians(72))
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     epr_average_e = 1/3*(radius_max**3-radius_min**3)/(radius_max-radius_min)
     force_average_e = epr_average_e * 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * DEM_dencity**(3/5) * DEM_velocity**(6/5)
     force_impact_elastic = ratio_Area * sin_theta * force_average_e
-    print('force_average_e=', np.round(force_average_e/1000,2), 'kN')
+    print('force_average_e=', np.round(force_average_e,2), 'N')
     #print('force_single_e_equ=', round(force_single_e_equ/1000,2), 'kN')
     
     #print('force_impact_elastic=', round(force_impact_elastic/1000,2), 'kN')
@@ -173,48 +173,31 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------------------------------------------------------------#
     # ----------------------------------------------------------------------------------------------------------------------------#
     # 弹性-理想塑性接触理论(Thornton, 1997)
-    F_y = sigma_y**3 * np.pi**3 * radius_max**2 / (6*modulus_equal**2)
     v_y = 1.56*(sigma_y**5 /(modulus_equal**4 * DEM_dencity))**0.5
+    F_y = sigma_y**3 * np.pi**3 * radius_max**2 / (6*modulus_equal**2)
     E_Fy = (radius_max**3-radius_min**3)/(radius_max-radius_min) * (sigma_y**3 * np.pi**3) / (18*modulus_equal**2)
+    if DEM_velocity > v_y:
+        mass_star = DEM_dencity * 4/3 * np.pi * radius_max**3
+        delta_max = (15*mass_star*DEM_velocity**2 / (16*modulus_equal*radius_max**0.5))**0.4
+        F_max1 = 4/3*modulus_equal**0.4*radius_max**0.2 * (15*mass_star*DEM_velocity**2/16)**0.6
+        F_max2 = 4/3*modulus_equal**0.4*radius_max**2 * (5*DEM_dencity*np.pi*DEM_velocity**2/4)**0.6
+        F_max = np.maximum(F_max1, F_max2)
+        print('F_max1=', F_max1, 'F_max2=', F_max2)
 
-    # 定义被积函数
-    A = F_y**2
-    B = 4/3*np.pi**2*sigma_y*DEM_dencity*(DEM_velocity**2 - v_y**2)
-    # 定义被积函数
-    def integrand(x, A, B):
-        return np.sqrt(A + B * x**4)
+    else:
+        F_max = np.sqrt(F_y**2 + 4/3*np.pi**2*sigma_y*DEM_dencity*(DEM_velocity**2 - v_y**2) * radius_max**4)
 
-    # 使用 quad 进行数值积分
-    E_Fmax, Int_error = quad(integrand, radius_min, radius_max, args=(A, B))
+        # 定义被积函数
+        A = F_y**2
+        B = 4/3*np.pi**2*sigma_y*DEM_dencity * (DEM_velocity**2 - v_y**2)
+        # 定义被积函数
+        def integrand(x, A, B):
+            return np.sqrt(A + B * x**4)
 
-    print('E_Fmax=', E_Fmax)
-    # ----------------------------------------------------------------------------------------------------------------------------#
-    # 弹塑性接触理论
-    # 模型参数
-    # 单位系统：国际单位N
-    para_c = 6.47 * 1e8  # 单位N/m^para_n
-    para_n = 1.1682  # 无量纲系数
-    k = (4*para_n+1)/(para_n+1)
-    radius_ep_equ = (1/k * (radius_max**k-radius_min**k)/(radius_max-radius_min))**((para_n+1)/(3*para_n))
-    
-    # 单个颗粒对桥墩的冲击力
-    force_single_ep_min = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_min**3 * DEM_dencity)**(para_n/(para_n+1))
-    force_single_ep_max = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_max**3 * DEM_dencity)**(para_n/(para_n+1))
-    force_single_ep_equ = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * radius_ep_equ**3 * DEM_dencity)**(para_n/(para_n+1))
-    force_single_ref2 = para_c * ((para_n+1)/(3*para_c) * np.pi * 5.0**2 * 0.45**3 * 2400)**(para_n/(para_n+1))
-    # print('force_single_ep_min=', round(force_single_ep_min/1000, 2), 'kN')
-    
-    # 碎屑颗粒冲击力
-    epr_n = (4*para_n+1) / (para_n+1)
-    epr1_average_ep = (1/epr_n) * (radius_max**epr_n - radius_min**epr_n)/(radius_max - radius_min)
-    epr2_average_ep = para_c * ((para_n+1)/(3*para_c) * np.pi * DEM_velocity**2 * DEM_dencity)**(para_n/(para_n+1))
-    force_average_ep = epr1_average_ep * epr2_average_ep
-    force_impact_elastic_plastic = ratio_Area * sin_theta * force_average_ep
-    #print('radius_ep_equ=', radius_ep_equ)
-    #print('force_single_ep_max=', round(force_single_ep_max/1000, 2), 'kN')
-    print('force_single_ep_equ=', np.round(force_single_ep_equ/1000, 2), 'kN')
-    print('Pier_width=',Pier_width, 'DEM_dencity=',DEM_dencity,'force_impact_elastic_plastic=', np.round(force_impact_elastic_plastic/1000,3), 'kN')
-    # ----------------------------------------------------------------------------------------------------------------------------#
+        # 使用 quad 进行数值积分
+        Int_value, Int_error = quad(integrand, radius_min, radius_max, args=(A, B))
+        E_Fmax = 1/(radius_max-radius_min) * Int_value
+    print('v_y=', v_y, 'F_y=', F_y, 'F_max=',F_max, 'E_Fmax=', E_Fmax)
     
     #print_circle_info(circles_uniform)
     #plot_circles(circles_uniform, Pier_width, DEM_depth)
