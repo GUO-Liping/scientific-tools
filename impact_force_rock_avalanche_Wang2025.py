@@ -6,98 +6,6 @@ import matplotlib.pyplot as plt
 from scipy.integrate import quad
 
 
-def generate_diameter(distribution_type, d_min, d_max, rng, **params):
-    """根据分布类型生成符合范围的随机直径"""
-    while True:
-        if distribution_type == 'uniform':
-            diameter = rng.uniform(d_min, d_max)
-        elif distribution_type == 'normal':
-            diameter = rng.normal(params.get('mean', 0), params.get('stddev', 1))
-        elif distribution_type == 'exponential':
-            diameter = rng.exponential(params.get('scale', 1))
-        elif distribution_type == 'poisson':
-            diameter = rng.poisson(params.get('lam', 3))
-        elif distribution_type == 'gamma':
-            diameter = rng.gamma(params.get('shape', 2), params.get('scale', 1))
-        elif distribution_type == 'beta':
-            diameter = d_min + (d_max - d_min) * rng.beta(params.get('a', 2), params.get('b', 2))
-        else:
-            raise ValueError(f"Unsupported distribution type: {distribution_type}")
-        
-        # 检查直径是否在范围内
-        if d_min <= diameter <= d_max:
-            return diameter
-
-
-def is_valid_position(x, y, radius, circles):
-    """检查新圆是否与已放置的圆相切或分离（不重叠）"""
-    if len(circles) == 0:
-        return True  # 初始无圆，直接有效
-    
-    # 已有圆的圆心和半径
-    existing_centers = circles[:, :2]  # (N, 2)
-    existing_radii = circles[:, 2]    # (N,)
-    
-    # 计算新圆与已有圆的距离
-    distances = np.sqrt((existing_centers[:, 0] - x)**2 + (existing_centers[:, 1] - y)**2)
-    min_distances = distances - (existing_radii + radius)  # 检查是否有重叠
-    
-    return np.all(min_distances >= 0)  # 只有所有圆都分离时返回 True
-
-
-def fill_circles(width, height, d_min, d_max, distribution_type, max_attempts=1000, **params):
-    """填充圆，确保圆不重叠"""
-    circles = []  # 存储圆的信息：x, y, radius
-    rng = np.random.default_rng()  # NumPy 的随机数生成器
-    
-    for _ in range(max_attempts):
-        # 根据分布生成直径
-        diameter = generate_diameter(distribution_type, d_min, d_max, rng, **params)
-        if diameter > width or diameter > height:
-            continue
-        radius = diameter / 2
-
-        # 随机生成圆心位置
-        x = rng.uniform(radius, width - radius)
-        y = rng.uniform(radius, height - radius)
-        
-        # 检查是否有效
-        if is_valid_position(x, y, radius, np.array(circles)):
-            circles.append((x, y, radius))
-    
-    global N  # 填充的圆颗粒个数
-    N =  len(circles)
-
-    return np.array(circles)
-
-def plot_circles(circles, width, height):
-    """绘制所有圆"""
-    fig, ax = plt.subplots()
-    ax.set_xlim(0, width)
-    ax.set_ylim(0, height)
-    ax.set_aspect('equal', adjustable='box')
-    
-    for x, y, radius in circles:
-        circle = plt.Circle((x, y), radius, edgecolor='black', facecolor='gray', alpha=0.5)
-        ax.add_patch(circle)
-    
-    plt.show()
-
-
-def print_circle_info(circles):
-    """打印圆的信息"""
-    diameters = circles[:, 2] * 2  # 计算每个圆的直径
-
-    print(f"填充的圆的数量: {N}")
-    # print(f"圆的直径: {diameters}")
-    print(f"最小直径: {diameters.min():.2f}, 最大直径: {diameters.max():.2f}, 平均直径: {diameters.mean():.2f}")
-
-    radius_s = diameters/2  # 颗粒半径，国际单位：m
-    force_s = 4/3 * (5*np.pi/4)**(3/5) * modulus_equal**(2/5) * DEM_dencity**(3/5) * DEM_velocity**(6/5) * radius_s**2
-
-    print(f"冲击力分别为: {np.round(force_s/1000, 3)} kN, \n冲击力之和为: {np.sum(force_s/1000)} kN")
-
-
 if __name__ == '__main__':
     # 输入参数——全局变量
 
@@ -105,9 +13,10 @@ if __name__ == '__main__':
     DEM_depth = 0.03  # 颗粒流厚度，0.03~0.05m
 
     # 桥墩参数
+    section_shape = 'round'
     Pier_width = 0.1
     Pier_modulus = 3.2e9
-    sigma_y =30e6  # 圆柱的屈服强度
+    sigma_y =10e6  # 圆柱的屈服强度
 
     # 碎屑颗粒流参数
     radius_min = 4.0e-3
@@ -144,8 +53,13 @@ if __name__ == '__main__':
     #radius_low = np.min(circles_uniform[:, 2])
     #prob_ST = 1/N + (1-np.exp(-0.005*N))
     #print('radius_e_equ=', radius_e_equ)
-
-    area_effect = Pier_width*DEM_depth
+    if section_shape == 'round':
+        Pier_width_effect = Pier_width/1.3
+    elif section_shape == 'square':
+        Pier_width_effect = Pier_width
+    else:
+        print('Shape Of Section Not Found!')
+    area_effect = Pier_width_effect*DEM_depth
     number_effect =  area_effect/(np.pi*(radius_max**2+radius_min**2)/2)
 
     print('number_effect=', int(number_effect))
