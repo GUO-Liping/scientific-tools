@@ -80,19 +80,19 @@ def compute_collision_force(area_effect, dem_velocity, ratio_solid, radius_min, 
 
 def main():
     # 参数定义
-    DEM_density = 2550  # kg/m3
-    DEM_depth = 0.03    # m
+    DEM_density = 2550      # kg/m3
+    DEM_depth = 0.03        # m
     section_shape = 'round'
     Pier_width = 0.1
-    Pier_modulus = 3.2e9  # Pa
-    sigma_y = 10e6        # Pa
-    radius_min = 4.0e-3
-    radius_max = 4.0e-3
-    DEM_modulus = 60e9    # Pa
-    DEM_velocity = 1.4    # m/s
-    ratio_solid = 0.45
-    impact_angle_deg = 72
-    impact_duration = 0.002  # s
+    Pier_modulus = 3.2e9    # Pa
+    sigma_y = 10e6          # Pa
+    radius_min = 4.0e-3     # m
+    radius_max = 4.0e-3     # m
+    DEM_modulus = 60e9      # Pa
+    DEM_velocity = 1.4      # m/s
+    ratio_solid = 0.45      # 固相体积分数
+    impact_angle_deg = 72   # 冲击角度 °
+    impact_duration = 0.002 # s
 
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
@@ -100,23 +100,23 @@ def main():
     # 计算桥墩有效宽度
     pier_width_effective = compute_effective_pier_width(section_shape, Pier_width)
 
-    # 计算估算填充圆数
+    # 计算有效填充个数
     number_effect = compute_number_effect(pier_width_effective, DEM_depth, radius_min, radius_max)
     print('number_effect =', number_effect)
 
     # 计算等效弹性模量和半径
-    modulus_eq = compute_elastic_modulus_equivalent(Pier_modulus, DEM_modulus)
+    modulus_equ = compute_elastic_modulus_equivalent(Pier_modulus, DEM_modulus)
     radius_equ = compute_radius_equivalent(radius_min, radius_max)
 
-    # 弹性接触理论力
+    # 弹性接触理论计算冲击力（接触力）
     force_min, force_max, force_equ = compute_elastic_contact_forces(
-        radius_min, radius_max, radius_equ, modulus_eq, DEM_density, DEM_velocity)
-    force_average = compute_average_elastic_force(radius_min, radius_max, modulus_eq, DEM_density, DEM_velocity)
+        radius_min, radius_max, radius_equ, modulus_equ, DEM_density, DEM_velocity)
+    force_average = compute_average_elastic_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity)
     print('Elastic Theory: average contact force =', np.round(force_average, 3), 'N')
 
-    # 弹性-理想塑性接触理论力
+    # 弹性-理想塑性接触理论计算冲击力（接触力）
     v_y, F_y, F_max, E_Fmax = compute_elasto_plastic_forces(
-        radius_min, radius_max, modulus_eq, DEM_density, DEM_velocity, sigma_y)
+        radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y)
     print(f'v_y = {np.round(v_y,3)}, F_y = {np.round(F_y,3)}')
     print(f'Elasto-Plastic Theory: F_max = {np.round(F_max)}, average contact force = {np.round(E_Fmax)}')
 
