@@ -16,7 +16,7 @@ if __name__ == '__main__':
     section_shape = 'round'
     Pier_width = 0.1
     Pier_modulus = 3.2e9
-    sigma_y =10e6  # 圆柱的屈服强度
+    sigma_y =300e6  # 圆柱的屈服强度
 
     # 碎屑颗粒流参数
     radius_min = 4.0e-3
