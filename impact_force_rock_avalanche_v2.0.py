@@ -8,7 +8,14 @@ def adjust_radius(radius_min, radius_max):
     return radius_min, radius_max
 
 def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity):
-    return 2.943 * (5*np.sqrt(2)/4 * np.pi*DEM_density * (1-DEM_miu**2)/DEM_modulus)**(2/5) * DEM_radius / ((2*DEM_velocity)**(1/5)) # s
+    k1 = (1-miu1**2)/(np.pi*E1)
+    k2 = (1-miu2**2)/(np.pi*E2)
+    n0 = np.sqrt(16/(9*np.pi**2) * radius1 * radius2 / ((k1+k2)**2*(R1+R2)))
+    n1 = (m1 + m2) / (m1*m2)
+
+    alpha1 = (5*velocity_relative**2/(4*n0*n1))**(2/5)
+    alpha_test = 2.943 * (5*np.sqrt(2)/4 * np.pi*DEM_density * (1-DEM_miu**2)/DEM_modulus)**(2/5) * DEM_radius / ((2*DEM_velocity)**(1/5)) # s
+    return alpha1
 
 def compute_effective_pier_width(pier_shape, pier_width):
     """计算桥墩有效宽度，根据截面形状调整。"""
@@ -86,7 +93,7 @@ if __name__ == '__main__':
     Pier_miu = 0.35         # Poisson’s ratio
 
     impact_duration = compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity)
-    print(impact_duration)
+    print('impact_duration=', np.round(impact_duration,6), 's')
 
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
