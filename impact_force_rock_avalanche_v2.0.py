@@ -7,15 +7,28 @@ def adjust_radius(radius_min, radius_max):
         radius_max += 1e-6
     return radius_min, radius_max
 
-def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity):
+def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu):
+    R1 = DEM_radius
+    R2 = float('inf')
+    E1 = DEM_modulus
+    E2 = Pier_modulus
+    miu1 = DEM_miu
+    miu2 = Pier_miu
+
+    velocity_relative = DEM_velocity
+    m1 = DEM_density*4*np.pi*R1**3/3
     k1 = (1-miu1**2)/(np.pi*E1)
     k2 = (1-miu2**2)/(np.pi*E2)
-    n0 = np.sqrt(16/(9*np.pi**2) * radius1 * radius2 / ((k1+k2)**2*(R1+R2)))
-    n1 = (m1 + m2) / (m1*m2)
+    n0 = 4/(3*np.pi*(k1+k2)) * np.sqrt(R1)
+    n1 = 1 / m1
+    k1 = (1-miu1**2)/(np.pi*E1)
+    k2 = (1-miu2**2)/(np.pi*E2)
 
     alpha1 = (5*velocity_relative**2/(4*n0*n1))**(2/5)
-    alpha_test = 2.943 * (5*np.sqrt(2)/4 * np.pi*DEM_density * (1-DEM_miu**2)/DEM_modulus)**(2/5) * DEM_radius / ((2*DEM_velocity)**(1/5)) # s
-    return alpha1
+    impact_duration_DEM_plane = 2.943 * alpha1/velocity_relative
+    impact_duration_DEM_DEM = 2.943 * (5*np.sqrt(2)/4 * np.pi*DEM_density * (1-DEM_miu**2)/DEM_modulus)**(2/5) * DEM_radius / (velocity_relative**(1/5)) # s
+    impact_duration_DEM_plane2 = 2.943/(velocity_relative**0.2) * (15*m1*(1-miu1**2)/(8*E1*np.sqrt(R1)))**0.4
+    return impact_duration_DEM_plane,impact_duration_DEM_DEM
 
 def compute_effective_pier_width(pier_shape, pier_width):
     """计算桥墩有效宽度，根据截面形状调整。"""
@@ -81,7 +94,7 @@ if __name__ == '__main__':
     DEM_modulus = 60e9      # Pa
     DEM_miu = 0.25          # Poisson’s ratio
     DEM_velocity = 1.21     # m/s
-    sigma_y = 30e6          # Pa
+    sigma_y = 300e6          # Pa
     radius_min = 4.0e-3     # m
     radius_max = 4.0e-3     # m
     ratio_solid = 0.45      # 固相体积分数
@@ -92,11 +105,12 @@ if __name__ == '__main__':
     Pier_modulus = 3.2e9    # Pa
     Pier_miu = 0.35         # Poisson’s ratio
 
-    impact_duration = compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity)
-    print('impact_duration=', np.round(impact_duration,6), 's')
-
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
+
+    # 计算冲击时间
+    impact_duration = compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu)[0]
+    print('impact_duration=', np.round(impact_duration,6), 's')
 
     # 计算桥墩有效宽度
     pier_width_effective = compute_effective_pier_width(Pier_shape, Pier_width)
