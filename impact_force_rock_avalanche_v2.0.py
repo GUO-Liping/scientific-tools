@@ -15,6 +15,7 @@ def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_v
     miu1 = DEM_miu
     miu2 = Pier_miu
 
+    # Hertz弹性碰撞时长
     velocity_relative = DEM_velocity
     m1 = DEM_density*4*np.pi*R1**3/3
     k1 = (1-miu1**2)/(np.pi*E1)
@@ -26,9 +27,32 @@ def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_v
 
     alpha1 = (5*velocity_relative**2/(4*n0*n1))**(2/5)
     impact_duration_DEM_plane = 2.943 * alpha1/velocity_relative
+
     impact_duration_DEM_DEM = 2.943 * (5*np.sqrt(2)/4 * np.pi*DEM_density * (1-DEM_miu**2)/DEM_modulus)**(2/5) * DEM_radius / (velocity_relative**(1/5)) # s
-    impact_duration_DEM_plane2 = 2.943/(velocity_relative**0.2) * (15*m1*(1-miu1**2)/(8*E1*np.sqrt(R1)))**0.4
+    # impact_duration_DEM_plane2 = 2.943/(velocity_relative**0.2) * (15*np.pi*m1*(k1+k2)/(16*np.sqrt(R1)))**0.4
     return impact_duration_DEM_plane,impact_duration_DEM_DEM
+
+
+def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y):
+    # Johnson弹塑性碰撞时长
+    sigma_yd = 1.28 * sigma_y  # pd/pm = 1.28 for steel material
+    p_d = 3.0 * sigma_yd
+    modulus_star = 1/((1-DEM_miu**2)/DEM_modulus + (1-Pier_miu**2)/Pier_modulus)
+    radius_star = DEM_radius
+    mass_star = DEM_density * 4/3 * np.pi * radius_star**3
+    velocity_relative = DEM_velocity
+    coeff1 = np.sqrt(3*np.pi**(5/4)*4**(3/4)/10)
+    coeff2 = np.sqrt(p_d/modulus_star)
+    coeff3 = (1/2 * mass_star * velocity_relative**2 / (p_d * radius_star**3))**(-1/8)
+    coeff_re1 = coeff1 * coeff2 * coeff3
+    coeff_re2 = 3.8 * np.sqrt(sigma_yd/modulus_star) * (1/2*mass_star*velocity_relative**2/(sigma_yd*radius_star**3))**(-1/8)
+
+    t_elastic = 2.87 * (mass_star**2 / (radius_star*modulus_star**2 * velocity_relative))**(1/5)
+
+    t_p = np.sqrt(np.pi * mass_star / (8*radius_star*p_d))
+    t_re = 1.2 * coeff_re2 * t_p
+    t_elastoplastic = t_p + t_re
+    return t_elastoplastic
 
 def compute_effective_pier_width(pier_shape, pier_width):
     """计算桥墩有效宽度，根据截面形状调整。"""
@@ -79,12 +103,18 @@ def compute_total_impact_force(area_effect, dem_velocity, ratio_solid, radius_mi
     """计算碰撞过程中总冲击力和相关时间离散参数。"""
     flow_time = 1  # s
     volume_total = area_effect * dem_velocity * flow_time
-    number_of_DEM = ratio_solid * volume_total / (4/3 * np.pi * (radius_max**3 + radius_min**3))
-    delta_t_DEM = flow_time / number_of_DEM
-    k_slope = int(impact_duration / (2 * delta_t_DEM))
+    number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_max**3 )))
+    t_per_DEM = flow_time / number_of_DEM
+    k_slope = E_Fmax / (impact_duration/2)
     angle_impact = np.sin(np.radians(impact_angle_deg))
-    total_force = angle_impact * E_Fmax * (k_slope + 1 - k_slope * (k_slope + 1) / 2 * delta_t_DEM / (0.5 * impact_duration))
-    return int(number_of_DEM), delta_t_DEM, total_force
+    
+    if t_per_DEM >= (impact_duration/2):
+        total_force = angle_impact * E_Fmax
+    else:
+        n_overlap = int(0.5*impact_duration/t_per_DEM)
+        total_force = angle_impact * k_slope * ((n_overlap+1)*impact_duration/2 -n_overlap*(n_overlap+1)*t_per_DEM/2)
+
+    return number_of_DEM, t_per_DEM, total_force
 
 
 if __name__ == '__main__':
@@ -94,13 +124,13 @@ if __name__ == '__main__':
     DEM_modulus = 60e9      # Pa
     DEM_miu = 0.25          # Poisson’s ratio
     DEM_velocity = 1.21     # m/s
-    sigma_y = 300e6          # Pa
+    sigma_y = 30e6          # Pa
     radius_min = 4.0e-3     # m
     radius_max = 4.0e-3     # m
     ratio_solid = 0.45      # 固相体积分数
     impact_angle_deg = 72   # 冲击角度 °
 
-    Pier_shape = 'round'
+    Pier_shape = 'square'
     Pier_width = 0.1
     Pier_modulus = 3.2e9    # Pa
     Pier_miu = 0.35         # Poisson’s ratio
@@ -109,8 +139,10 @@ if __name__ == '__main__':
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
 
     # 计算冲击时间
-    impact_duration = compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu)[0]
-    print('impact_duration=', np.round(impact_duration,6), 's')
+    impact_duration_elastic = compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu)[0]
+    impact_duration_elastoplastic = compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
+    print('impact_duration_elastic =', np.round(impact_duration_elastic,9), 's')
+    print('impact_duration_elastoplastic =', np.round(impact_duration_elastoplastic,9), 's')
 
     # 计算桥墩有效宽度
     pier_width_effective = compute_effective_pier_width(Pier_shape, Pier_width)
@@ -129,5 +161,5 @@ if __name__ == '__main__':
 
     # 碰撞过程时间离散性和总冲击力
     area_effect = pier_width_effective * DEM_depth
-    number_of_DEM, delta_t_DEM, total_force = compute_total_impact_force( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax)
-    print('\tNumber of 3D prticles =', np.round(number_of_DEM), '\n\tdelta_t_DEM =', np.round(delta_t_DEM,5), 'total_force =', np.round(total_force,3), 'N')
+    number_of_DEM, t_per_DEM, total_force = compute_total_impact_force( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    print('\tNumber of 3D prticles =', np.round(number_of_DEM), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
