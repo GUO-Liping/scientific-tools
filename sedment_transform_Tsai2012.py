@@ -143,10 +143,11 @@ def model_bedload(
 
     if gsd is None:
         x_log = np.logspace(np.log10(0.0001), np.log10(10), num=1000)
+        # s为颗粒粒径分布方差
         s = s_s / np.sqrt(1 / 3 - 2 / np.pi**2)
-        p_s = (
-            1 / (2*s) * (1 + np.cos(np.pi * (np.log(x_log)-np.log(d_s)) / s))
-        ) / x_log
+        # p_s是沉积物粒径的概率密度分布函数，用于描述不同粒径颗粒np.log(x_log)在整体粒径分布[np.log(d_s) - s, np.log(d_s) + s]中所占的比例。
+        # p_s颗粒粒径分布函数——升余弦分布Raised cosine distribution---------------------------------eq.15 
+        p_s = (1 / (2*s) * (1 + np.cos(np.pi * (np.log(x_log)-np.log(d_s)) / s))) / x_log
         p_s[(np.log(x_log) - np.log(d_s)) > s] = 0
         p_s[(np.log(x_log) - np.log(d_s)) < -s] = 0
 
@@ -316,7 +317,7 @@ if __name__ == "__main__":
         h_w=h_w,
         w_w=w_w,
         a_w=a_w,
-        f=(0.1, 20),
+        f=(0.1, 20),  # 截断频率 0.1Hz至20Hz
         r_0=r_0,
         f_0=f_0,
         q_0=q_0,
