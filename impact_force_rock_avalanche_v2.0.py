@@ -35,23 +35,29 @@ def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_v
 
 def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y):
     # Johnson弹塑性碰撞时长
-    sigma_yd = 1.28 * sigma_y  # pd/pm = 1.28 for steel material
+    sigma_yd = 1.0 * sigma_y  # pd/pm = 1.28 for steel material
     p_d = 3.0 * sigma_yd
     modulus_star = 1/((1-DEM_miu**2)/DEM_modulus + (1-Pier_miu**2)/Pier_modulus)
     radius_star = DEM_radius
     mass_star = DEM_density * 4/3 * np.pi * radius_star**3
     velocity_relative = DEM_velocity
-    coeff1 = np.sqrt(3*np.pi**(5/4)*4**(3/4)/10)
-    coeff2 = np.sqrt(p_d/modulus_star)
-    coeff3 = (1/2 * mass_star * velocity_relative**2 / (p_d * radius_star**3))**(-1/8)
-    coeff_re1 = coeff1 * coeff2 * coeff3
-    coeff_re2 = 3.8 * np.sqrt(sigma_yd/modulus_star) * (1/2*mass_star*velocity_relative**2/(sigma_yd*radius_star**3))**(-1/8)
 
     t_elastic = 2.87 * (mass_star**2 / (radius_star*modulus_star**2 * velocity_relative))**(1/5)
 
+    coeff1 = 3 * np.pi**(5/4) * 4**(3/4) / 10
+    coeff2 = p_d / modulus_star
+    coeff3 = (1/2 * mass_star * velocity_relative**2 / (p_d * radius_star**3))**(-1/4)
+    coeff_re = np.sqrt(coeff1 * coeff2 * coeff3)
+    if coeff_re > 1:
+        coeff_re = 1
+
+    # 当速度比较小时，采用下式coeff_re2计算的恢复系数大于1，且与coeff_re相差较大，这说明使用p_d≈3.0σy不准确，故不采用
+    # coeff_re2 = 3.7432822830305064 * np.sqrt(sigma_yd/modulus_star) * ((1/2*mass_star*velocity_relative**2)/(sigma_yd*radius_star**3))**(-1/8)
+
     t_p = np.sqrt(np.pi * mass_star / (8*radius_star*p_d))
-    t_re = 1.2 * coeff_re2 * t_p
-    t_elastoplastic = t_p + t_re
+    t_e2 = 1.2 * coeff_re * t_p
+    t_e = 2.87 * (mass_star**2 / (radius_star*modulus_star**2 * (coeff_re*velocity_relative)))**(1/5)
+    t_elastoplastic = t_p + t_e
     return t_elastoplastic
 
 def compute_effective_pier_width(pier_shape, pier_width):
@@ -103,7 +109,8 @@ def compute_total_impact_force(area_effect, dem_velocity, ratio_solid, radius_mi
     """计算碰撞过程中总冲击力和相关时间离散参数。"""
     flow_time = 1  # s
     volume_total = area_effect * dem_velocity * flow_time
-    number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_max**3 )))
+    radius_avg = (radius_max + radius_min) / 2
+    number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
     t_per_DEM = flow_time / number_of_DEM
     k_slope = E_Fmax / (impact_duration/2)
     angle_impact = np.sin(np.radians(impact_angle_deg))
@@ -130,7 +137,8 @@ if __name__ == '__main__':
     ratio_solid = 0.45      # 固相体积分数
     impact_angle_deg = 72   # 冲击角度 °
 
-    Pier_shape = 'square'
+    #Pier_shape = 'square'
+    Pier_shape = 'round'
     Pier_width = 0.1
     Pier_modulus = 3.2e9    # Pa
     Pier_miu = 0.35         # Poisson’s ratio
