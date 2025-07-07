@@ -54,10 +54,21 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
     # 当速度比较小时，采用下式coeff_re2计算的恢复系数大于1，且与coeff_re相差较大，这说明使用p_d≈3.0σy不准确，故不采用
     # coeff_re2 = 3.7432822830305064 * np.sqrt(sigma_yd/modulus_star) * ((1/2*mass_star*velocity_relative**2)/(sigma_yd*radius_star**3))**(-1/8)
 
-    t_p = np.sqrt(np.pi * mass_star / (8*radius_star*p_d))
-    t_e2 = 1.2 * coeff_re * t_p
-    t_e = 2.87 * (mass_star**2 / (radius_star*modulus_star**2 * (coeff_re*velocity_relative)))**(1/5)
-    t_elastoplastic = t_p + t_e
+    t_p_loading = np.sqrt(np.pi * mass_star / (8*radius_star*p_d))
+
+    if t_p_loading > 1e-4:
+        t_p_loading = 1e-4
+    elif t_p_loading < 1e-5:
+        t_p_loading = 1e-5
+    else:
+        pass
+
+    # eq.(11.47)
+    t_e_unloading1 = 1.2 * coeff_re * t_p_loading
+    # eq.(11.24)
+    t_elastic = 2.87 * (mass_star**2 / (radius_star*modulus_star**2 * (coeff_re*velocity_relative)))**(1/5)
+    t_e_unloading = t_elastic / 2
+    t_elastoplastic = t_p_loading + t_e_unloading
     return t_elastoplastic
 
 def compute_effective_pier_width(pier_shape, pier_width):
@@ -120,28 +131,28 @@ def compute_total_impact_force(area_effect, dem_velocity, ratio_solid, radius_mi
     else:
         n_overlap = int(0.5*impact_duration/t_per_DEM)
         total_force = angle_impact * k_slope * ((n_overlap+1)*impact_duration/2 -n_overlap*(n_overlap+1)*t_per_DEM/2)
-
+    
     return number_of_DEM, t_per_DEM, total_force
 
 
 if __name__ == '__main__':
     # 参数定义
     DEM_density = 2550      # kg/m3
-    DEM_depth = 0.035       # m
+    DEM_depth = 0.05       # m
     DEM_modulus = 60e9      # Pa
     DEM_miu = 0.25          # Poisson’s ratio
-    DEM_velocity = 1.21     # m/s
+    DEM_velocity = 1.4     # m/s
     sigma_y = 30e6          # Pa
     radius_min = 4.0e-3     # m
     radius_max = 4.0e-3     # m
-    ratio_solid = 0.45      # 固相体积分数
+    ratio_solid = 0.25      # 固相体积分数
     impact_angle_deg = 72   # 冲击角度 °
 
     #Pier_shape = 'square'
     Pier_shape = 'round'
     Pier_width = 0.1
     Pier_modulus = 3.2e9    # Pa
-    Pier_miu = 0.35         # Poisson’s ratio
+    Pier_miu = 0.45         # Poisson’s ratio
 
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
