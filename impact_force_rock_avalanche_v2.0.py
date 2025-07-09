@@ -31,6 +31,8 @@ def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_v
     # impact_duration_DEM_plane2 = 2.943/(velocity_relative**0.2) * (15*np.pi*m1*(k1+k2)/(16*np.sqrt(R1)))**0.4
     return impact_duration_DEM_plane,impact_duration_DEM_DEM
 
+def integrand(x):
+    return 1 / np.sqrt(1 - x**(5/2))
 
 def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y):
     # Johnson弹塑性碰撞时长
@@ -41,19 +43,16 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
     mass_star = DEM_density * 4/3 * np.pi * radius_star**3
     velocity_relative = DEM_velocity
 
-    t_elastic = 2.87 * (mass_star**2 / (radius_star*modulus_star**2 * velocity_relative))**(1/5)
-
     coeff1 = 3 * np.pi**(5/4) * 4**(3/4) / 10
     coeff2 = p_d / modulus_star
     coeff3 = (1/2 * mass_star * velocity_relative**2 / (p_d * radius_star**3))**(-1/4)
     coeff_re = np.sqrt(coeff1 * coeff2 * coeff3)
     if coeff_re > 1:
-        coeff_re = 1
+        pass
 
     # 当速度比较小时，采用下式coeff_re2计算的恢复系数大于1，且与coeff_re相差较大，这说明使用p_d≈3.0σy不准确，故不采用
     # coeff_re2 = 3.7432822830305064 * np.sqrt(sigma_yd/modulus_star) * ((1/2*mass_star*velocity_relative**2)/(sigma_yd*radius_star**3))**(-1/8)
 
-    t_p_loading = np.sqrt(np.pi * mass_star / (8*radius_star*p_d))
 
     '''
     if t_p_loading > 1e-4:
@@ -64,12 +63,17 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
         pass
     '''
 
-    # eq.(11.47)
-    t_e_unloading1 = 1.2 * coeff_re * t_p_loading
-    # eq.(11.24), 本程序采用该式
-    t_elastic = 2.87 * (mass_star**2 / (radius_star*modulus_star**2 * (coeff_re*velocity_relative)))**(1/5)
-    t_e_unloading = 1.0 * t_elastic
-    t_elastoplastic = t_p_loading + t_e_unloading
+    int_result, int_error = quad(integrand, 0, 1)
+    delta_z_star = ((15*mass_star*velocity_relative**2) / (16*np.sqrt(radius_star)*modulus_star))**(2/5)
+    t_elastic_origin = 2 * (delta_z_star/velocity_relative) * int_result
+
+    # eq.(11.24), 本程序采用该式  
+    t_elastic = 2.868265699194853 * (mass_star**2 / (radius_star*modulus_star**2 * (coeff_re*velocity_relative)))**(1/5)
+    t_plastic = np.sqrt((np.pi * mass_star) / (8*radius_star*p_d))
+    
+    t_elastic_eq11_47 = 1.2 * coeff_re * t_plastic  # eq.(11.47)
+
+    t_elastoplastic = t_elastic + t_plastic
     return t_elastoplastic
 
 def compute_impact_area_effect(pier_shape, pier_width, DEM_depth, radius_max):
@@ -140,15 +144,17 @@ def compute_total_impact_force(area_effect, dem_velocity, ratio_solid, radius_mi
 
 if __name__ == '__main__':
     # 参数定义
-    # Jiang et al. 2021参数
+
+    ''' 
+    # Choi et al. 2020参数
     DEM_velocity = 2.2      # m/s
-    DEM_depth = 0.011       # m
+    DEM_depth = 0.027       # m
     DEM_density = 2500      # kg/m3  玻璃密度2500kg/m3
     DEM_modulus = 55e9      # Pa  玻璃弹性模量55GPa
     DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.25
-    radius_min = 10.0e-3/2   # m
-    radius_max = 10.0e-3/2   # m
-    ratio_solid = np.pi/6.0 # 固相体积分数
+    radius_min = 3.0e-3/2   # m
+    radius_max = 3.0e-3/2   # m
+    ratio_solid = 0.55      # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
 
     Pier_shape = 'square'
@@ -158,8 +164,7 @@ if __name__ == '__main__':
     Pier_miu = 0.3          # Poisson's ratio 
     sigma_y = 50e6          # Pa PMMA:50 - 77 MPa
     
-
-    '''   
+ 
     # Barbara et al. 2010 参数
     DEM_density = 1530      # kg/m3
     DEM_depth = 0.025        # m
@@ -197,7 +202,7 @@ if __name__ == '__main__':
     Pier_modulus = 32.5e9    # Pa 30GPa - 32.5GPa
     Pier_miu = 0.3         # Poisson's ratio
     sigma_y = 40e6          # Pa
-    
+    '''
     # Wang et al. 2025 参数
     DEM_density = 2550      # kg/m3
     DEM_depth = 0.05       # m
@@ -206,16 +211,16 @@ if __name__ == '__main__':
     DEM_velocity = 1.6     # m/s
     radius_min = 4.0e-3     # m
     radius_max = 4.0e-3     # m
-    ratio_solid = 0.45      # 固相体积分数
+    ratio_solid = 0.25      # 固相体积分数
     impact_angle_deg = 72   # 冲击角度 °
 
-    Pier_shape = 'square'
-    #Pier_shape = 'round'
+    #Pier_shape = 'square'
+    Pier_shape = 'round'
     Pier_width = 0.1
     Pier_modulus = 3.2e9    # Pa
     Pier_miu = 0.35         # Poisson’s ratio
     sigma_y = 30e6          # Pa
-    '''
+
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
 
