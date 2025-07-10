@@ -261,7 +261,7 @@ if __name__ == '__main__':
     DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.25
     radius_min = 10.0e-3/2   # m
     radius_max = 10.0e-3/2   # m
-    ratio_solid = 0.55      # 固相体积分数np.pi/6.0
+    ratio_solid = np.pi/6.0      # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
 
     Pier_shape = 'square'
