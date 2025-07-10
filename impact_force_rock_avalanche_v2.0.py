@@ -1,4 +1,6 @@
 import numpy as np
+import numpy.ma as ma
+import matplotlib.pyplot as plt
 from scipy.integrate import quad
 
 def adjust_radius(radius_min, radius_max):
@@ -123,13 +125,15 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
 
     return velocity_y, F_single_min, F_single_max, E_Fmax
 
-def compute_total_impact_force(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
-    """计算碰撞过程中总冲击力和相关时间离散参数。"""
+def compute_total_impact_force_triangle(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
+    """根据三角形脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
     flow_time = 1  # s
     volume_total = area_effect * dem_velocity * flow_time
     radius_avg = (radius_max + radius_min) / 2
     number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
     t_per_DEM = flow_time / number_of_DEM
+    num_pieces = max(int(impact_duration/t_per_DEM),1)
+
     k_slope = E_Fmax / (impact_duration/2)
     angle_impact = np.sin(np.radians(impact_angle_deg))
     
@@ -139,8 +143,53 @@ def compute_total_impact_force(area_effect, dem_velocity, ratio_solid, radius_mi
         n_overlap = int(0.5*impact_duration/t_per_DEM)
         total_force = angle_impact * k_slope * ((n_overlap+1)*impact_duration/2 -n_overlap*(n_overlap+1)*t_per_DEM/2)
     
-    return number_of_DEM, t_per_DEM, total_force
+    return num_pieces, t_per_DEM, total_force
 
+def compute_total_impact_force_sine(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
+    """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
+    flow_time = 1  # s
+    volume_total = area_effect * dem_velocity * flow_time
+    radius_avg = (radius_max + radius_min) / 2
+    number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    t_per_DEM = flow_time / number_of_DEM
+    angle_impact = np.sin(np.radians(impact_angle_deg))
+
+    num_pieces = max(int(impact_duration/t_per_DEM)+1,1)
+    num_points = 1000
+
+    t_pieces  = np.zeros((num_pieces,num_points))
+    sin_total = np.zeros((num_pieces,num_points))
+    cos_total = np.zeros((num_pieces,num_points))
+
+    for i in range(num_pieces):
+        sin_array = np.zeros((1,num_points))
+        cos_array = np.zeros((1,num_points))
+        t_pieces[i] = np.linspace(i*t_per_DEM, (i+1)*t_per_DEM, num_points)
+
+        for j in range(i+1):
+            sin_array = np.sin((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
+            cos_array = np.cos((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
+
+            sin_array[sin_array < 0] = 0
+            cos_array[sin_array < 0] = 0
+
+            sin_total[i] = sin_total[i] + sin_array
+            cos_total[i] = cos_total[i] + cos_array
+            
+        plt.plot(t_pieces[i], sin_total[i],'-*')
+        plt.plot(t_pieces[i], cos_total[i],'-s')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Function value')
+        plt.title('Function value over time')
+    plt.plot(np.array([0,impact_duration]),np.array([np.max(sin_total), np.max(sin_total)]),'-.*r')
+    plt.plot(np.array([impact_duration,impact_duration]),np.array([0, np.max(sin_total)]),'-.*r')
+    plt.xlim(0, 1.05*np.max(t_pieces)) # 设置x轴范围从0到冲击时间
+    plt.ylim(1.05*min(np.min(sin_total),np.min(cos_total)), 1.05*max(np.max(sin_total),np.max(cos_total)))  # 设置y轴范围从0到最大sine_total值
+    plt.show()
+
+    total_force = angle_impact*np.max(sin_total)*E_Fmax
+
+    return num_pieces, t_per_DEM, total_force
 
 if __name__ == '__main__':
     # 参数定义
@@ -208,10 +257,10 @@ if __name__ == '__main__':
     DEM_depth = 0.05       # m
     DEM_modulus = 60e9      # Pa
     DEM_miu = 0.25          # Poisson’s ratio
-    DEM_velocity = 1.6     # m/s
+    DEM_velocity = 2.6     # m/s
     radius_min = 4.0e-3     # m
     radius_max = 4.0e-3     # m
-    ratio_solid = 0.25      # 固相体积分数
+    ratio_solid = 0.45      # 固相体积分数
     impact_angle_deg = 72   # 冲击角度 °
 
     #Pier_shape = 'square'
@@ -246,5 +295,5 @@ if __name__ == '__main__':
     print(f'\tF_min = {np.round(F_min,3)}, F_max = {np.round(F_max,3)}, force_average = {np.round(E_Fmax,3)}', 'N')
 
     # 碰撞过程时间离散性和总冲击力
-    number_of_DEM, t_per_DEM, total_force = compute_total_impact_force( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    print('\tNumber of 3D prticles =', np.round(number_of_DEM), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
+    num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
