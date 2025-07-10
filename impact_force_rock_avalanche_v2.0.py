@@ -248,16 +248,16 @@ if __name__ == '__main__':
     #Pier_shape = 'square'
     Pier_shape = 'round'
     Pier_width = 1.8        # m
-    Pier_modulus = 32.5e9    # Pa 30GPa - 32.5GPa
-    Pier_miu = 0.3         # Poisson's ratio
+    Pier_modulus = 32.5e9   # Pa 30GPa - 32.5GPa
+    Pier_miu = 0.3          # Poisson's ratio
     sigma_y = 40e6          # Pa
     '''
     # Wang et al. 2025 参数
     DEM_density = 2550      # kg/m3
-    DEM_depth = 0.05       # m
+    DEM_depth = 0.05        # m
     DEM_modulus = 60e9      # Pa
     DEM_miu = 0.25          # Poisson’s ratio
-    DEM_velocity = 2.6     # m/s
+    DEM_velocity = 2.6      # m/s
     radius_min = 4.0e-3     # m
     radius_max = 4.0e-3     # m
     ratio_solid = 0.45      # 固相体积分数
