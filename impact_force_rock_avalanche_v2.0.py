@@ -182,27 +182,6 @@ def compute_total_impact_force_triangle(area_effect, dem_velocity, ratio_solid, 
     return num_pieces, t_per_DEM, total_force
 
 
-def compute_total_impact_force_triangle_old(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
-    """根据三角形脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
-    flow_time = 1  # s
-    volume_total = area_effect * dem_velocity * flow_time
-    radius_avg = (radius_max + radius_min) / 2
-    number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    t_per_DEM = flow_time / number_of_DEM
-    num_pieces = max(int(impact_duration/t_per_DEM),1)
-
-    k_slope = E_Fmax / (impact_duration/2)
-    angle_impact = np.sin(np.radians(impact_angle_deg))
-    
-    if t_per_DEM >= (impact_duration/2):
-        total_force = angle_impact * E_Fmax
-    else:
-        n_overlap = int(0.5*impact_duration/t_per_DEM)
-        total_force = angle_impact * k_slope * ((n_overlap+1)*impact_duration/2 -n_overlap*(n_overlap+1)*t_per_DEM/2)
-    
-    return num_pieces, t_per_DEM, total_force
-
-
 def compute_total_impact_force_sine(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
     """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
     flow_time = 1  # s
@@ -261,7 +240,7 @@ if __name__ == '__main__':
     DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.25
     radius_min = 10.0e-3/2   # m
     radius_max = 10.0e-3/2   # m
-    ratio_solid = np.pi/6.0      # 固相体积分数np.pi/6.0
+    ratio_solid = 0.55      # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
 
     Pier_shape = 'square'
@@ -347,12 +326,13 @@ if __name__ == '__main__':
     force_min, force_max, force_equ, force_average = compute_Hertz_contact_forces(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity)
     print('[Hertz Elastic Theory]: ', '\n\tF_min=', np.round(force_min,3), 'F_max=',np.round(force_max,3), 'F_equ=', np.round(force_equ,3),'F_average=',np.round(force_average,3),'N')
 
-    # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
-    print('[Thornton Elasto-Plastic Theory]: ')
+    # Johnson弹性-理想塑性接触理论计算冲击力（接触力）
+    print('[Johnson Elasto-Plastic Theory]: ')
     v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y)
     print(f'\tF_min = {np.round(F_min,3)}, F_max = {np.round(F_max,3)}, force_average = {np.round(E_Fmax,3)}', 'N')
 
     # 碰撞过程时间离散性和总冲击力
-    num_pieces, t_per_DEM, total_force = compute_total_impact_force_triangle( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    #num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
+    num_pieces1, t_per_DEM1, total_force1 = compute_total_impact_force_triangle( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    num_pieces2, t_per_DEM2, total_force2 = compute_total_impact_force_sine( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    print('\n\tNumber of impacts in T_imp =', np.round(num_pieces1), '\n\tt_per_DEM =', np.round(t_per_DEM1,9), 'total_force_tri =', np.round(total_force1,3), 'N')
+    print('\n\tNumber of impacts in T_imp =', np.round(num_pieces2), '\n\tt_per_DEM =', np.round(t_per_DEM2,9), 'total_force_sin =', np.round(total_force2,3), 'N')
