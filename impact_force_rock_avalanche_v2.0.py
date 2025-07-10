@@ -3,11 +3,16 @@ import numpy.ma as ma
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
 
+# 设置中文字体
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 使用 SimHei 字体
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+
+
 def adjust_radius(radius_min, radius_max):
     """如果半径上下限相等，则微调radius_max，防止除零错误。"""
     if radius_max == radius_min:
-        radius_min -= 1e-3
-        radius_max += 1e-3
+        radius_min -= 1e-5
+        radius_max += 1e-5
     return radius_min, radius_max
 
 def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu):
@@ -134,6 +139,58 @@ def compute_total_impact_force_triangle(area_effect, dem_velocity, ratio_solid, 
     t_per_DEM = flow_time / number_of_DEM
     num_pieces = max(int(impact_duration/t_per_DEM),1)
 
+
+    array_size = 100
+    length = array_size//2
+    pulse_array_front = np.linspace(0, 1, length)
+    pulse_array_end = np.linspace(1, 0, length)
+    pulse_array = np.concatenate([pulse_array_front, pulse_array_end[1:]])
+
+    multi_pulse_arrays = []
+    length_add = round(length * 2*t_per_DEM/impact_duration)
+    # 对基础数组进行平移，生成其余数组
+    for i in range(num_pieces):
+        shifted_array = np.concatenate([np.zeros(i*length_add), pulse_array, np.zeros((num_pieces - i-1)*length_add)])
+        multi_pulse_arrays.append(shifted_array)
+    
+    time_pulse = np.arange(0, len(multi_pulse_arrays[0])*t_per_DEM, t_per_DEM)
+
+    # 将所有数组进行求和
+    sum_array = np.sum(multi_pulse_arrays, axis=0)
+
+    # 绘制所有数组和它们的和
+    plt.figure(figsize=(10, 6))
+    for i, array in enumerate(multi_pulse_arrays):
+        plt.plot(time_pulse, array, label=f'Array {i+1}')
+
+    plt.plot(time_pulse,sum_array, label='Sum of Arrays', color='red', linewidth=2)
+    plt.legend()
+    plt.title('数组及其和的图形表示')
+    plt.xlabel('时间(s)')
+    plt.ylabel('值')
+    plt.grid(True)
+    plt.show()
+
+
+    angle_impact = np.sin(np.radians(impact_angle_deg))
+    
+    if t_per_DEM >= (impact_duration/2):
+        total_force = angle_impact * E_Fmax
+    else:
+        total_force = angle_impact * E_Fmax * np.max(sum_array)
+    
+    return num_pieces, t_per_DEM, total_force
+
+
+def compute_total_impact_force_triangle_old(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
+    """根据三角形脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
+    flow_time = 1  # s
+    volume_total = area_effect * dem_velocity * flow_time
+    radius_avg = (radius_max + radius_min) / 2
+    number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    t_per_DEM = flow_time / number_of_DEM
+    num_pieces = max(int(impact_duration/t_per_DEM),1)
+
     k_slope = E_Fmax / (impact_duration/2)
     angle_impact = np.sin(np.radians(impact_angle_deg))
     
@@ -145,6 +202,7 @@ def compute_total_impact_force_triangle(area_effect, dem_velocity, ratio_solid, 
     
     return num_pieces, t_per_DEM, total_force
 
+
 def compute_total_impact_force_sine(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
     """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
     flow_time = 1  # s
@@ -154,7 +212,7 @@ def compute_total_impact_force_sine(area_effect, dem_velocity, ratio_solid, radi
     t_per_DEM = flow_time / number_of_DEM
     angle_impact = np.sin(np.radians(impact_angle_deg))
 
-    num_pieces = max(int(impact_duration/t_per_DEM)+1,1)
+    num_pieces = max(int(impact_duration/t_per_DEM),1)
     num_points = 1000
 
     t_pieces  = np.zeros((num_pieces,num_points))
@@ -194,15 +252,15 @@ def compute_total_impact_force_sine(area_effect, dem_velocity, ratio_solid, radi
 if __name__ == '__main__':
     # 参数定义
 
-    ''' 
+
     # Choi et al. 2020参数
-    DEM_velocity = 2.2      # m/s
-    DEM_depth = 0.027       # m
+    DEM_velocity = 3.2      # m/s
+    DEM_depth = 0.046       # m
     DEM_density = 2500      # kg/m3  玻璃密度2500kg/m3
     DEM_modulus = 55e9      # Pa  玻璃弹性模量55GPa
     DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.25
-    radius_min = 3.0e-3/2   # m
-    radius_max = 3.0e-3/2   # m
+    radius_min = 10.0e-3/2   # m
+    radius_max = 10.0e-3/2   # m
     ratio_solid = 0.55      # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
 
@@ -213,7 +271,7 @@ if __name__ == '__main__':
     Pier_miu = 0.3          # Poisson's ratio 
     sigma_y = 50e6          # Pa PMMA:50 - 77 MPa
     
- 
+    ''' 
     # Barbara et al. 2010 参数
     DEM_density = 1530      # kg/m3
     DEM_depth = 0.025       # m
@@ -251,13 +309,13 @@ if __name__ == '__main__':
     Pier_modulus = 32.5e9   # Pa 30GPa - 32.5GPa
     Pier_miu = 0.3          # Poisson's ratio
     sigma_y = 40e6          # Pa
-    '''
+
     # Wang et al. 2025 参数
     DEM_density = 2550      # kg/m3
     DEM_depth = 0.05        # m
     DEM_modulus = 60e9      # Pa
     DEM_miu = 0.25          # Poisson’s ratio
-    DEM_velocity = 2.6      # m/s
+    DEM_velocity = 1.6      # m/s
     radius_min = 4.0e-3     # m
     radius_max = 4.0e-3     # m
     ratio_solid = 0.45      # 固相体积分数
@@ -269,7 +327,7 @@ if __name__ == '__main__':
     Pier_modulus = 3.2e9    # Pa
     Pier_miu = 0.35         # Poisson’s ratio
     sigma_y = 30e6          # Pa
-
+    '''
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
 
@@ -295,5 +353,6 @@ if __name__ == '__main__':
     print(f'\tF_min = {np.round(F_min,3)}, F_max = {np.round(F_max,3)}, force_average = {np.round(E_Fmax,3)}', 'N')
 
     # 碰撞过程时间离散性和总冲击力
-    num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    num_pieces, t_per_DEM, total_force = compute_total_impact_force_triangle( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    #num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
     print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
