@@ -216,19 +216,19 @@ if __name__ == '__main__':
  
     # Barbara et al. 2010 参数
     DEM_density = 1530      # kg/m3
-    DEM_depth = 0.025        # m
+    DEM_depth = 0.025       # m
     DEM_modulus = 30e9      # Pa
     DEM_miu = 0.30          # Poisson's ratio
     DEM_velocity = 2.9      # m/s
-    radius_min = 0.3e-3/2    # m
-    radius_max = 6.0e-3/2     # m
+    radius_min = 0.3e-3/2   # m
+    radius_max = 6.0e-3/2   # m
     ratio_solid = 0.4 #np.pi/6.0 # 固相体积分数
     impact_angle_deg = 51   # 冲击角度 °
 
     #Pier_shape = 'square'
     Pier_shape = 'round'
-    Pier_width = 0.025       # m
-    Pier_modulus = 4.0e9     # Pa PVC:2.4GPa - 4.1GPa
+    Pier_width = 0.025      # m
+    Pier_modulus = 4.0e9    # Pa PVC:2.4GPa - 4.1GPa
     Pier_miu = 0.3          # Poisson's ratio PVC:0.38
     sigma_y = 40e6          # Pa PVC:40 - 44 MPa
     
@@ -236,7 +236,7 @@ if __name__ == '__main__':
 
     # Zhong et al. 2022 参数
     DEM_density = 1550      # kg/m3
-    DEM_depth = 0.8       # m
+    DEM_depth = 0.8         # m
     DEM_modulus = 30e9      # Pa
     DEM_miu = 0.30          # Poisson's ratio
     DEM_velocity = 28.23    # m/s
