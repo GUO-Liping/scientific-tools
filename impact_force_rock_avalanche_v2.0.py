@@ -139,7 +139,6 @@ def compute_total_impact_force_triangle(area_effect, dem_velocity, ratio_solid, 
     t_per_DEM = flow_time / number_of_DEM
     num_pieces = max(int(impact_duration/t_per_DEM),1)
 
-
     array_size = 100
     length = array_size//2
     pulse_array_front = np.linspace(0, 1, length)
@@ -334,5 +333,5 @@ if __name__ == '__main__':
     # 碰撞过程时间离散性和总冲击力
     num_pieces1, t_per_DEM1, total_force1 = compute_total_impact_force_triangle( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
     num_pieces2, t_per_DEM2, total_force2 = compute_total_impact_force_sine( area_effect, DEM_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    print('\n\tNumber of impacts in T_imp =', np.round(num_pieces1), '\n\tt_per_DEM =', np.round(t_per_DEM1,9), 'total_force_tri =', np.round(total_force1,3), 'N')
-    print('\n\tNumber of impacts in T_imp =', np.round(num_pieces2), '\n\tt_per_DEM =', np.round(t_per_DEM2,9), 'total_force_sin =', np.round(total_force2,3), 'N')
+    print('\n\tNumber of impacts in T_imp =', np.round(num_pieces1), '\n\tt_per_DEM_tri =', np.round(t_per_DEM1,9), 'total_force_tri =', np.round(total_force1,3), 'N')
+    print('\n\tNumber of impacts in T_imp =', np.round(num_pieces2), '\n\tt_per_DEM_sin =', np.round(t_per_DEM2,9), 'total_force_sin =', np.round(total_force2,3), 'N')
