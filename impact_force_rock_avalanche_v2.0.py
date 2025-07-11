@@ -9,7 +9,7 @@ plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 
 def adjust_radius(radius_min, radius_max):
-    """如果半径上下限相等，则微调radius_max，防止除零错误。"""
+    """如果半径上下限相等，则微调radius_max，防止除零错误。玻璃珠直径误差在0.02mm以下"""
     if radius_max == radius_min:
         radius_min -= 1e-5
         radius_max += 1e-5
@@ -59,16 +59,6 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
 
     # 当速度比较小时，采用下式coeff_re2计算的恢复系数大于1，且与coeff_re相差较大，这说明使用p_d≈3.0σy不准确，故不采用
     # coeff_re2 = 3.7432822830305064 * np.sqrt(sigma_yd/modulus_star) * ((1/2*mass_star*velocity_relative**2)/(sigma_yd*radius_star**3))**(-1/8)
-
-
-    '''
-    if t_p_loading > 1e-4:
-        t_p_loading = 1e-4
-    elif t_p_loading < 1e-5:
-        t_p_loading = 1e-5
-    else:
-        pass
-    '''
 
     int_result, int_error = quad(integrand, 0, 1)
     delta_z_star = ((15*mass_star*velocity_relative**2) / (16*np.sqrt(radius_star)*modulus_star))**(2/5)
@@ -230,24 +220,27 @@ def compute_total_impact_force_sine(area_effect, dem_velocity, ratio_solid, radi
 if __name__ == '__main__':
     # 参数定义
 
-
     # Choi et al. 2020参数
-    DEM_velocity = 3.2      # m/s
-    DEM_depth = 0.046       # m
-    DEM_density = 2500      # kg/m3  玻璃密度2500kg/m3
-    DEM_modulus = 55e9      # Pa  玻璃弹性模量55GPa
-    DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.25
+    DEM_velocity = 1.8      # m/s
+    DEM_depth = 0.031       # m
+    DEM_density = 2500      # kg/m3  glass: 2200 - 2600kg/m3
+    DEM_modulus = 72e9      # Pa  glass: 55-72GPa
+    DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.2-0.25
+    DEM_strength = 45e6     # Pa  glass: 45MPa
     radius_min = 10.0e-3/2   # m
     radius_max = 10.0e-3/2   # m
-    ratio_solid = 0.55      # 固相体积分数np.pi/6.0
+    ratio_solid = np.pi/6.0      # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
 
     Pier_shape = 'square'
     #Pier_shape = 'round'
     Pier_width = 0.2        # m
-    Pier_modulus = 3.0e9    # Pa PMMA:3.0GPa
-    Pier_miu = 0.3          # Poisson's ratio 
-    sigma_y = 50e6          # Pa PMMA:50 - 77 MPa
+    Pier_modulus = 2.4e9    # Pa PMMA:2.4-3.5GPa
+    Pier_miu = 0.35          # PMMA: Poisson's ratio 0.35 - 0.4
+    Pier_density = 1200     # kg/m3 PMMA:1170kg/m3 - 1200kg/m3
+    Pier_strength = 60e6   # Pa PMMA: 60MPa
+
+    sigma_y = min(DEM_strength, Pier_strength)         # Pa PMMA:50 - 77 MPa
     
     ''' 
     # Barbara et al. 2010 参数
