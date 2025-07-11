@@ -221,14 +221,14 @@ if __name__ == '__main__':
     # 参数定义
 
     # Choi et al. 2020参数
-    DEM_velocity = 1.8      # m/s
+    DEM_velocity = 3.1      # m/s
     DEM_depth = 0.031       # m
     DEM_density = 2500      # kg/m3  glass: 2200 - 2600kg/m3
     DEM_modulus = 72e9      # Pa  glass: 55-72GPa
     DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.2-0.25
     DEM_strength = 45e6     # Pa  glass: 45MPa
-    radius_min = 10.0e-3/2   # m
-    radius_max = 10.0e-3/2   # m
+    radius_min = 3.0e-3/2   # m
+    radius_max = 3.0e-3/2   # m
     ratio_solid = np.pi/6.0      # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
 
