@@ -150,9 +150,9 @@ def compute_total_impact_force_triangle(area_effect, dem_velocity, ratio_solid, 
     # 绘制所有数组和它们的和
     plt.figure(figsize=(10, 6))
     for i, array in enumerate(multi_pulse_arrays):
-        plt.plot(time_pulse, array, label=f'Array {i+1}')
+        plt.plot(time_pulse, array, '-')
 
-    plt.plot(time_pulse,sum_array, label='Sum of Arrays', color='red', linewidth=2)
+    plt.plot(time_pulse,sum_array, '-k', linewidth=2)
     plt.legend()
     plt.title('数组及其和的图形表示')
     plt.xlabel('时间(s)')
@@ -201,9 +201,10 @@ def compute_total_impact_force_sine(area_effect, dem_velocity, ratio_solid, radi
 
             sin_total[i] = sin_total[i] + sin_array
             cos_total[i] = cos_total[i] + cos_array
-            
-        plt.plot(t_pieces[i], sin_total[i],'-*')
-        plt.plot(t_pieces[i], cos_total[i],'-s')
+            plt.plot(t_pieces[i], sin_array,'-')
+
+        plt.plot(t_pieces[i], sin_total[i],'-k', linewidth=2)
+        #plt.plot(t_pieces[i], cos_total[i],'-s')
         plt.xlabel('Time (s)')
         plt.ylabel('Function value')
         plt.title('Function value over time')
@@ -221,7 +222,7 @@ if __name__ == '__main__':
     # 参数定义
 
     # Choi et al. 2020参数
-    DEM_velocity = 3.1      # m/s
+    DEM_velocity = 1.8      # m/s
     DEM_depth = 0.031       # m
     DEM_density = 2500      # kg/m3  glass: 2200 - 2600kg/m3
     DEM_modulus = 72e9      # Pa  glass: 55-72GPa

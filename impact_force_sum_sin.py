@@ -21,8 +21,10 @@ try:
 
     for i in range(num_pieces):
         t = np.linspace(i * delta_t, (i + 1) * delta_t, num_points)
-        ft[i] = np.sum([np.sin(t - j * delta_t) for j in range(i + 1)], axis=0)
+        for j in range(i + 1):
+            ft[i] = ft[i]  + np.sin(t - j * delta_t)
 
+        plt.plot(t, np.cos(t - j * delta_t), '-*')
         plt.plot(t, ft[i], '-*')
         plt.xlabel('Time (s)')
         plt.ylabel('Function value')
