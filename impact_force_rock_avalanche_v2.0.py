@@ -67,8 +67,50 @@ def compute_elasto_plastic_forces(radius_min, radius_max, modulus_eq, dem_densit
         def integrand(x):
             return np.sqrt(A + B * x**4)
 
+<<<<<<< HEAD
+def compute_total_impact_force_triangle(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
+    """根据三角形脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
+    flow_time = 1  # s
+    volume_total = area_effect * dem_velocity * flow_time
+    radius_avg = (radius_max + radius_min) / 2
+    number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    t_per_DEM = flow_time / number_of_DEM
+    num_pieces = max(int(impact_duration/t_per_DEM),1)
+
+    array_size = 100
+    length = array_size//2
+    pulse_array_front = np.linspace(0, 1, length)
+    pulse_array_end = np.linspace(1, 0, length)
+    pulse_array = np.concatenate([pulse_array_front, pulse_array_end[1:]])
+
+    multi_pulse_arrays = []
+    length_add = round(length * 2*t_per_DEM/impact_duration)
+    # 对基础数组进行平移，生成其余数组
+    for i in range(num_pieces):
+        shifted_array = np.concatenate([np.zeros(i*length_add), pulse_array, np.zeros((num_pieces - i-1)*length_add)])
+        multi_pulse_arrays.append(shifted_array)
+    
+    time_pulse = np.arange(0, len(multi_pulse_arrays[0])*t_per_DEM, t_per_DEM)
+
+    # 将所有数组进行求和
+    sum_array = np.sum(multi_pulse_arrays, axis=0)
+
+    # 绘制所有数组和它们的和
+    plt.figure(figsize=(10, 6))
+    for i, array in enumerate(multi_pulse_arrays):
+        plt.plot(time_pulse, array, '-')
+
+    plt.plot(time_pulse,sum_array, '-k', linewidth=2)
+    plt.legend()
+    plt.title('数组及其和的图形表示')
+    plt.xlabel('时间(s)')
+    plt.ylabel('值')
+    plt.grid(True)
+    plt.show()
+=======
         Int_value, Int_error = quad(integrand, radius_min, radius_max)
         E_Fmax = Int_value / (radius_max - radius_min)
+>>>>>>> bb3a51b6322d315ee7bc62fa7425aeb0594d44cc
 
     return v_y, F_y, F_max, E_Fmax
 
@@ -82,8 +124,124 @@ def compute_collision_force(area_effect, dem_velocity, ratio_solid, radius_min, 
     total_force = angle_impact * E_Fmax * (k + 1 - k * (k + 1) / 2 * delta_t_DEM / (0.5 * impact_duration))
     return int(number_of_DEM), delta_t_DEM, total_force
 
+<<<<<<< HEAD
+
+def compute_total_impact_force_sine(area_effect, dem_velocity, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
+    """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
+    flow_time = 1  # s
+    volume_total = area_effect * dem_velocity * flow_time
+    radius_avg = (radius_max + radius_min) / 2
+    number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    t_per_DEM = flow_time / number_of_DEM
+    angle_impact = np.sin(np.radians(impact_angle_deg))
+
+    num_pieces = max(int(impact_duration/t_per_DEM),1)
+    num_points = 1000
+
+    t_pieces  = np.zeros((num_pieces,num_points))
+    sin_total = np.zeros((num_pieces,num_points))
+    cos_total = np.zeros((num_pieces,num_points))
+
+    for i in range(num_pieces):
+        sin_array = np.zeros((1,num_points))
+        cos_array = np.zeros((1,num_points))
+        t_pieces[i] = np.linspace(i*t_per_DEM, (i+1)*t_per_DEM, num_points)
+
+        for j in range(i+1):
+            sin_array = np.sin((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
+            cos_array = np.cos((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
+
+            sin_array[sin_array < 0] = 0
+            cos_array[sin_array < 0] = 0
+
+            sin_total[i] = sin_total[i] + sin_array
+            cos_total[i] = cos_total[i] + cos_array
+            plt.plot(t_pieces[i], sin_array,'-')
+
+        plt.plot(t_pieces[i], sin_total[i],'-k', linewidth=2)
+        #plt.plot(t_pieces[i], cos_total[i],'-s')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Function value')
+        plt.title('Function value over time')
+    plt.plot(np.array([0,impact_duration]),np.array([np.max(sin_total), np.max(sin_total)]),'-.*r')
+    plt.plot(np.array([impact_duration,impact_duration]),np.array([0, np.max(sin_total)]),'-.*r')
+    plt.xlim(0, 1.05*np.max(t_pieces)) # 设置x轴范围从0到冲击时间
+    plt.ylim(1.05*min(np.min(sin_total),np.min(cos_total)), 1.05*max(np.max(sin_total),np.max(cos_total)))  # 设置y轴范围从0到最大sine_total值
+    plt.show()
+
+    total_force = angle_impact*np.max(sin_total)*E_Fmax
+
+    return num_pieces, t_per_DEM, total_force
+
+if __name__ == '__main__':
+    # 参数定义
+
+    # Choi et al. 2020参数
+    DEM_velocity = 1.8      # m/s
+    DEM_depth = 0.031       # m
+    DEM_density = 2500      # kg/m3  glass: 2200 - 2600kg/m3
+    DEM_modulus = 72e9      # Pa  glass: 55-72GPa
+    DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.2-0.25
+    DEM_strength = 45e6     # Pa  glass: 45MPa
+    radius_min = 3.0e-3/2   # m
+    radius_max = 3.0e-3/2   # m
+    ratio_solid = np.pi/6.0      # 固相体积分数np.pi/6.0
+    impact_angle_deg = 90   # 冲击角度 °
+
+    Pier_shape = 'square'
+    #Pier_shape = 'round'
+    Pier_width = 0.2        # m
+    Pier_modulus = 2.4e9    # Pa PMMA:2.4-3.5GPa
+    Pier_miu = 0.35          # PMMA: Poisson's ratio 0.35 - 0.4
+    Pier_density = 1200     # kg/m3 PMMA:1170kg/m3 - 1200kg/m3
+    Pier_strength = 60e6   # Pa PMMA: 60MPa
+
+    sigma_y = min(DEM_strength, Pier_strength)         # Pa PMMA:50 - 77 MPa
+    
+    ''' 
+    # Barbara et al. 2010 参数
+    DEM_density = 1530      # kg/m3
+    DEM_depth = 0.025       # m
+    DEM_modulus = 30e9      # Pa
+    DEM_miu = 0.30          # Poisson's ratio
+    DEM_velocity = 2.9      # m/s
+    radius_min = 0.3e-3/2   # m
+    radius_max = 6.0e-3/2   # m
+    ratio_solid = 0.4 #np.pi/6.0 # 固相体积分数
+    impact_angle_deg = 51   # 冲击角度 °
+
+    #Pier_shape = 'square'
+    Pier_shape = 'round'
+    Pier_width = 0.025      # m
+    Pier_modulus = 4.0e9    # Pa PVC:2.4GPa - 4.1GPa
+    Pier_miu = 0.3          # Poisson's ratio PVC:0.38
+    sigma_y = 40e6          # Pa PVC:40 - 44 MPa
+    
+
+
+    # Zhong et al. 2022 参数
+    DEM_density = 1550      # kg/m3
+    DEM_depth = 0.8         # m
+    DEM_modulus = 30e9      # Pa
+    DEM_miu = 0.30          # Poisson's ratio
+    DEM_velocity = 28.23    # m/s
+    radius_min = 0.1        # m
+    radius_max = 0.2        # m
+    ratio_solid = np.pi/6.0 # 固相体积分数
+    impact_angle_deg = 60   # 冲击角度 °
+
+    #Pier_shape = 'square'
+    Pier_shape = 'round'
+    Pier_width = 1.8        # m
+    Pier_modulus = 32.5e9   # Pa 30GPa - 32.5GPa
+    Pier_miu = 0.3          # Poisson's ratio
+    sigma_y = 40e6          # Pa
+
+    # Wang et al. 2025 参数
+=======
 def main():
     # 参数定义
+>>>>>>> bb3a51b6322d315ee7bc62fa7425aeb0594d44cc
     DEM_density = 2550      # kg/m3
     DEM_depth = 0.03        # m
     section_shape = 'round'
