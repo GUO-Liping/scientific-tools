@@ -1,46 +1,90 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# 参数设置
-impact_duration = 5e-4
-delta_t = 3e-4
-num_impacts = 5
-time_total = (num_impacts - 1) * delta_t + impact_duration
-omega_sine = np.pi / impact_duration
-T_sine = 2 * impact_duration
-num_points = 100
-time_step = impact_duration / num_points
+def generate_waveform(wave_type, num_points=100, amplitude=1.0):
+    """生成基础单峰波形"""
+    x = np.linspace(0, 1, num_points)
 
-# 计算总时间和样本数
-time_values = np.arange(0, time_total, time_step)
-num_total_points = len(time_values)
-num_samples_per_impact = round(delta_t / impact_duration * num_points)
-
-# 预分配空间，初始化总和
-total_waveform = np.zeros(num_total_points)
-
-# 生成波形并叠加
-for i in range(num_impacts):
-    # 计算当前冲击的时间点
-    impact_time_values = np.linspace(i * delta_t, i * delta_t + T_sine / 2, num_points)
+    if wave_type == 'sine':
+        return amplitude * np.sin(np.pi * x)
     
-    # 生成当前冲击的波形
-    impact_wave = np.sin(omega_sine * (impact_time_values - i * delta_t))
+    elif wave_type == 'triangle':
+        half = round(num_points / 2)
+        rise = np.linspace(0, amplitude, half)
+        fall = np.linspace(amplitude, 0, half)
+        return np.concatenate((rise, fall[1:],np.array([0])),axis=0)
     
-    # 对当前波形进行零填充，使其对齐到总时间轴
-    padded_impact_wave = np.pad(impact_wave, (i * num_samples_per_impact, num_total_points - num_points - i * num_samples_per_impact), 'constant', constant_values=0)
+    elif wave_type == 'square':
+        return np.full(num_points, amplitude)
     
-    # 将当前波形叠加到总和中
-    total_waveform += padded_impact_wave
-    
-    # 可视化每个冲击的波形
-    plt.plot(time_values, padded_impact_wave, '-')
+    elif wave_type == 'sawtooth':
+        return amplitude * x
 
-# 可视化最终的总和波形
-plt.plot(time_values, total_waveform, '-o', linewidth=3)
+    elif wave_type == 'gaussian':
+        return amplitude * np.exp(-20 * (x - 0.5) ** 2)
+    
+    else:
+        raise ValueError(f"Unsupported wave type: {wave_type}")
 
-# 显示图形
-plt.xlabel('Time (s)')
-plt.ylabel('Function value')
-plt.title('Function value over time')
-plt.show()
+def generate_wave_sequence(wave_type='sine', num_waves=5, 
+                           wave_duration=0.0005, delta_t=0.0003, 
+                           amplitude=1.0, num_points=100):
+    """生成波形序列并求叠加"""
+    time_step = wave_duration / num_points
+    shift_points = max(1, int(round(delta_t / time_step)))
+    total_points = (num_waves - 1) * shift_points + num_points
+    time_values = np.arange(total_points) * time_step
+
+    base_wave = generate_waveform(wave_type, num_points, amplitude)
+    total_wave = np.zeros(total_points)
+    waveforms = []
+
+    for i in range(num_waves):
+        wave = np.zeros(total_points)
+        start = i * shift_points
+        end = min(start + num_points, total_points)
+        length = end - start
+        wave[start:end] = base_wave[:length]
+        waveforms.append(wave)
+        total_wave += wave
+
+    return waveforms, total_wave, time_values
+
+def plot_waveforms(waveforms, total_wave, time_values, wave_type):
+    """绘制多个波形及其叠加图"""
+    plt.figure(figsize=(10, 6))
+    
+    # 绘制前几条单个波形
+    max_show = len(waveforms)
+    for i in range(max_show):
+        plt.plot(time_values, waveforms[i], alpha=0.6, label=f'Wave {i+1}')
+    
+    # 绘制叠加波形
+    plt.plot(time_values, total_wave, 'r-', linewidth=2, label='Sum')
+    
+    plt.title(f'{wave_type.capitalize()} Wave Sequence ({len(waveforms)} waves)')
+    plt.xlabel('Time (s)')
+    plt.ylabel('Amplitude')
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+# ======================== 主程序 ========================
+if __name__ == "__main__":
+    wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian']
+    num_waves = 10
+    wave_duration = 0.0005  # 每个波的持续时间
+    delta_t = 0.0001        # 相邻波形间隔
+    amplitude = 1.0
+
+    for wave_type in wave_types:
+        waveforms, total_wave, time_values = generate_wave_sequence(
+            wave_type=wave_type,
+            num_waves=num_waves,
+            wave_duration=wave_duration,
+            delta_t=delta_t,
+            amplitude=amplitude
+        )
+        plot_waveforms(waveforms, total_wave, time_values, wave_type)
+        
