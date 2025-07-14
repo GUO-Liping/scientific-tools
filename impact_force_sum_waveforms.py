@@ -73,9 +73,9 @@ def plot_waveforms(waveforms, total_wave, time_values, wave_type):
 # ======================== 主程序 ========================
 if __name__ == "__main__":
     wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian']
-    num_waves = 6
-    wave_duration = 0.0005  # 每个波的持续时间
-    delta_t = 0.00015        # 相邻波形间隔
+    num_waves = 5
+    wave_duration = 0.00028  # 每个波的持续时间
+    delta_t = 0.0001        # 相邻波形间隔
     amplitude = 1.0
 
     for wave_type in wave_types:
