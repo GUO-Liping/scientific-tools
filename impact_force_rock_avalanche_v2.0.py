@@ -38,8 +38,6 @@ def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_v
     # impact_duration_DEM_plane2 = 2.943/(velocity_relative**0.2) * (15*np.pi*m1*(k1+k2)/(16*np.sqrt(R1)))**0.4
     return impact_duration_DEM_plane,impact_duration_DEM_DEM
 
-def integrand(x):
-    return 1 / np.sqrt(1 - x**(5/2))
 
 def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y):
     # Johnson弹塑性碰撞时长
@@ -55,21 +53,13 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
     coeff3 = (1/2 * mass_star * velocity_relative**2 / (p_d * radius_star**3))**(-1/4)
     coeff_re = np.sqrt(coeff1 * coeff2 * coeff3)
     if coeff_re > 1:
-        pass
+        coeff_re = 1
 
     # 当速度比较小时，采用下式coeff_re2计算的恢复系数大于1，且与coeff_re相差较大，这说明使用p_d≈3.0σy不准确，故不采用
     # coeff_re2 = 3.7432822830305064 * np.sqrt(sigma_yd/modulus_star) * ((1/2*mass_star*velocity_relative**2)/(sigma_yd*radius_star**3))**(-1/8)
 
-
-    '''
-    if t_p_loading > 1e-4:
-        t_p_loading = 1e-4
-    elif t_p_loading < 1e-5:
-        t_p_loading = 1e-5
-    else:
-        pass
-    '''
-
+    def integrand(x):
+        return 1 / np.sqrt(1 - x**(5/2))
     int_result, int_error = quad(integrand, 0, 1)
     delta_z_star = ((15*mass_star*velocity_relative**2) / (16*np.sqrt(radius_star)*modulus_star))**(2/5)
     t_elastic_origin = 2 * (delta_z_star/velocity_relative) * int_result
@@ -83,23 +73,25 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
     t_elastoplastic = t_elastic + t_plastic
     return t_elastoplastic
 
-def compute_impact_area_effect(pier_shape, pier_width, DEM_depth, radius_max):
+def compute_effective_flow_rate(pier_shape, pier_width, DEM_depth, radius_max, DEM_velocity):
     """计算桥墩有效宽度，根据截面形状调整。"""
     if pier_shape == 'round':
         pier_width_effect = pier_width / 1.35 + 4 * radius_max
-        return pier_width_effect * DEM_depth
     elif pier_shape == 'square':
         pier_width_effect = pier_width + 2 * radius_max
-        return pier_width_effect * DEM_depth
     else:
         raise ValueError('Shape Of Section Not Found!')
+    
+    effective_flow_rate = pier_width_effect * DEM_depth * DEM_velocity
+    return effective_flow_rate
+
 
 def compute_elastic_modulus_equivalent(pier_modulus, pier_miu, dem_modulus, dem_miu):
     """计算等效弹性模量。"""
     return 1 / ((1-pier_miu**2) / pier_modulus + (1-dem_miu**2) / dem_modulus)
 
 def compute_Hertz_contact_forces(radius_min, radius_max, modulus_eq, dem_density, dem_velocity):
-    """计算弹性Hertz接触理论中的接触力。"""
+    """计算Hertz弹性接触理论中的接触力。"""
     radius_equ = (1/3 * (radius_max**2 + radius_max*radius_min + radius_min**2)) ** 0.5
     factor = (4/3) * modulus_eq**(2/5) * (5*np.pi/4)**(3/5) * dem_density**(3/5) * dem_velocity**(6/5)
     force_min = factor * radius_min**2
@@ -112,7 +104,7 @@ def compute_Hertz_contact_forces(radius_min, radius_max, modulus_eq, dem_density
     return force_min, force_max, force_equ, force_average
 
 def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_density, dem_velocity, sigma_y):
-    """计算弹性/理想塑性-接触力的期望。"""
+    """计算Thornton弹性/理想塑性-接触力的期望。"""
     velocity_y = np.sqrt(np.pi**4/40) * (sigma_y**5 / (dem_density * modulus_eq**4))**0.5  # np.sqrt(np.pi**4/40)=1.560521475613219791
     Fy_r_max = sigma_y**3 * np.pi**3 * radius_max**2 / (6 * modulus_eq**2)
     Fy_r_min = sigma_y**3 * np.pi**3 * radius_min**2 / (6 * modulus_eq**2)
@@ -138,7 +130,6 @@ def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, 
     number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
     t_per_DEM = flow_time / number_of_DEM
     num_pieces = max(int(impact_duration/t_per_DEM),1)
-
 
     array_size = 100
     length = array_size//2
@@ -321,16 +312,13 @@ if __name__ == '__main__':
     '''
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
-    DEM_flow_rate = DEM_depth * Pier_width * DEM_velocity    # m^3/s
+    DEM_flow_rate = compute_effective_flow_rate(Pier_shape, Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
     # 计算冲击时间
     impact_duration_elastic = compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu)[0]
     impact_duration_elastoplastic = compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
     print('impact_duration_elastic =', np.round(impact_duration_elastic,9), 's')
     print('impact_duration_elastoplastic =', np.round(impact_duration_elastoplastic,9), 's')
-
-    # 计算桥墩的有效冲击区域面积
-    area_effect = compute_impact_area_effect(Pier_shape, Pier_width, DEM_depth, radius_max)
 
     # 计算等效弹性模量
     modulus_equ = compute_elastic_modulus_equivalent(Pier_modulus, Pier_miu, DEM_modulus, DEM_miu)
