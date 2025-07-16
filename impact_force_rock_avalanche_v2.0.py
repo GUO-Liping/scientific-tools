@@ -241,8 +241,8 @@ if __name__ == '__main__':
     DEM_density = 2500      # kg/m3  玻璃密度2500kg/m3
     DEM_modulus = 55e9      # Pa  玻璃弹性模量55GPa
     DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.25
-    radius_min = 10.0e-3/2   # m
-    radius_max = 10.0e-3/2   # m
+    radius_min = 3.0e-3/2   # m
+    radius_max = 3.0e-3/2   # m
     ratio_solid = np.pi/6.0      # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
 
@@ -333,6 +333,6 @@ if __name__ == '__main__':
     print(f'\tF_min = {np.round(F_min,3)}, F_max = {np.round(F_max,3)}, force_average = {np.round(E_Fmax,3)}', 'N')
 
     # 碰撞过程时间离散性和总冲击力
-    #num_pieces, t_per_DEM, total_force = compute_total_impact_force_triangle( DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    num_pieces, t_per_DEM, total_force = compute_total_impact_force_triangle( DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    #num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
     print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
