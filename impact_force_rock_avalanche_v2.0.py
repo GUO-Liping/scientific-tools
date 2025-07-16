@@ -78,7 +78,7 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
 def compute_effective_flow_rate(pier_width, DEM_depth, radius_max, DEM_velocity):
     """计算桥墩有效宽度，根据截面形状调整。"""
     pier_width_effect = pier_width + 4 * radius_max
-    DEM_depth_effect = DEM_depth + 2 * radius_max
+    DEM_depth_effect = DEM_depth
     effective_flow_rate = pier_width_effect * DEM_depth_effect * DEM_velocity
     
     return effective_flow_rate
@@ -119,7 +119,8 @@ def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, 
     """根据三角形脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
     flow_time = 1  # s
     volume_total = DEM_flow_rate * flow_time
-    radius_avg = (radius_max + radius_min) / 2
+    #radius_avg = np.sqrt(1/3 * (radius_max**2 + radius_max*radius_min + radius_min**2))
+    radius_avg = (radius_max + radius_min)/2
     number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
     t_per_DEM = flow_time / number_of_DEM
     num_pieces = max(math.ceil(impact_duration/t_per_DEM),1)
@@ -182,7 +183,7 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
     """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
     flow_time = 1  # s
     volume_total = DEM_flow_rate * flow_time
-    radius_avg = (radius_max + radius_min) / 2
+    radius_avg = (radius_max + radius_min)/2
     number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
     t_per_DEM = flow_time / number_of_DEM
     angle_impact = np.sin(np.radians(impact_angle_deg))
@@ -196,29 +197,22 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
 
     for i in range(num_pieces):
         sin_array = np.zeros((1,num_points))
-        cos_array = np.zeros((1,num_points))
         t_pieces[i] = np.linspace(i*t_per_DEM, (i+1)*t_per_DEM, num_points)
 
         for j in range(i+1):
             sin_array = np.sin((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
-            cos_array = np.cos((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
 
             sin_array[sin_array < 0] = 0
-            cos_array[sin_array < 0] = 0
 
             sin_total[i] = sin_total[i] + sin_array
-            cos_total[i] = cos_total[i] + cos_array
             
         plt.plot(t_pieces[i], sin_total[i],'-*')
-        plt.plot(t_pieces[i], cos_total[i],'-s')
         plt.xlabel('Time (s)')
         plt.ylabel('Function value')
         plt.title('Function value over time')
 
     plt.plot(np.array([0,impact_duration]),np.array([np.max(sin_total), np.max(sin_total)]),'-.*r')
     plt.plot(np.array([impact_duration,impact_duration]),np.array([0, np.max(sin_total)]),'-.*r')
-    plt.xlim(0, 1.05*np.max(t_pieces)) # 设置x轴范围从0到冲击时间
-    plt.ylim(1.05*min(np.min(sin_total),np.min(cos_total)), 1.05*max(np.max(sin_total),np.max(cos_total)))  # 设置y轴范围从0到最大sine_total值
     plt.show()
 
     if Pier_shape == 'round':
@@ -236,14 +230,17 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    DEM_Volumn = 16000      # 碎屑流方量：m^3
-    DEM_depth = 2.4 + (20-2.4)/(16000-1000) * (DEM_Volumn-1000)      #  16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
+    DEM_Volumn = 2000      # 碎屑流方量：m^3
+    DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))      
+    #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
+    #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
+    #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     DEM_velocity = 10.8      # m/s
     DEM_density = 2286      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 25.8e9      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.2          # Poisson's ratio  花岗岩泊松比0.1-0.3
-    radius_min = 0.3  # m
-    radius_max = 0.6  # m
+    radius_min = 0.6  # m
+    radius_max = 1.2  # m
     ratio_solid = np.pi/6.0 # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
     
