@@ -236,8 +236,8 @@ if __name__ == '__main__':
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     DEM_velocity = 10.8      # m/s
-    DEM_density = 2286      # kg/m3  花岗岩密度2500kg/m3
-    DEM_modulus = 25.8e9      # Pa   花岗岩弹性模量50-100GPa
+    DEM_density = 2550      # kg/m3  花岗岩密度2500kg/m3
+    DEM_modulus = 50e9      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.2          # Poisson's ratio  花岗岩泊松比0.1-0.3
     radius_min = 0.6  # m
     radius_max = 1.2  # m
