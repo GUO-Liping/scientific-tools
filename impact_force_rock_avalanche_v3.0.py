@@ -11,33 +11,18 @@ plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 def adjust_radius(radius_min, radius_max):
     """如果半径上下限相等，则微调radius_max，防止除零错误。"""
-    if radius_max == radius_min:
-        radius_min -= 1e-5
-        radius_max += 1e-5
+    # 转为numpy数组，方便处理
+    radius_min = np.array(radius_min, dtype=float)
+    radius_max = np.array(radius_max, dtype=float)
+
+    # 找出相等的位置
+    mask_equal = (radius_min == radius_max)
+
+    # 微调
+    radius_min[mask_equal] -= 1e-5
+    radius_max[mask_equal] += 1e-5
+
     return radius_min, radius_max
-
-def compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu):
-    R1 = DEM_radius
-    R2 = float('inf')
-    E1 = DEM_modulus
-    E2 = Pier_modulus
-    miu1 = DEM_miu
-    miu2 = Pier_miu
-
-    # Hertz弹性碰撞时长
-    velocity_relative = DEM_velocity
-    m1 = DEM_density*4*np.pi*R1**3/3
-    k1 = (1-miu1**2)/(np.pi*E1)
-    k2 = (1-miu2**2)/(np.pi*E2)
-    n0 = 4/(3*np.pi*(k1+k2)) * np.sqrt(R1)
-    n1 = 1 / m1
-
-    alpha1 = (5*velocity_relative**2/(4*n0*n1))**(2/5)
-    impact_duration_DEM_plane = 2.943 * alpha1/velocity_relative
-
-    impact_duration_DEM_DEM = 2.943 * (5*np.sqrt(2)/4 * np.pi*DEM_density * (1-DEM_miu**2)/DEM_modulus)**(2/5) * DEM_radius / (velocity_relative**(1/5)) # s
-    # impact_duration_DEM_plane2 = 2.943/(velocity_relative**0.2) * (15*np.pi*m1*(k1+k2)/(16*np.sqrt(R1)))**0.4
-    return impact_duration_DEM_plane,impact_duration_DEM_DEM
 
 
 def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y):
@@ -53,8 +38,8 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
     coeff2 = p_d / modulus_star
     coeff3 = (1/2 * mass_star * velocity_relative**2 / (p_d * radius_star**3))**(-1/4)
     coeff_re = np.sqrt(coeff1 * coeff2 * coeff3)
-    if coeff_re > 1:
-        coeff_re = 1
+
+    coeff_re = np.minimum(coeff_re, 1.0)
 
     # 当速度比较小时，采用下式coeff_re2计算的恢复系数大于1，且与coeff_re相差较大，这说明使用p_d≈3.0σy不准确，故不采用
     # coeff_re2 = 3.7432822830305064 * np.sqrt(sigma_yd/modulus_star) * ((1/2*mass_star*velocity_relative**2)/(sigma_yd*radius_star**3))**(-1/8)
@@ -63,6 +48,7 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
         return 1 / np.sqrt(1 - x**(5/2))
     
     int_result, int_error = quad(integrand, 0, 1)
+
     delta_z_star = ((15*mass_star*velocity_relative**2) / (16*np.sqrt(radius_star)*modulus_star))**(2/5)
     t_elastic_origin = 2 * (delta_z_star/velocity_relative) * int_result
 
@@ -73,7 +59,7 @@ def compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, DEM
     t_elastic_eq11_47 = 1.2 * coeff_re * t_plastic  # eq.(11.47)
 
     t_elastoplastic = t_elastic + t_plastic
-    return t_elastoplastic
+    return t_elastic, t_elastoplastic
 
 def compute_effective_flow_rate(pier_width, DEM_depth, radius_max, DEM_velocity):
     """计算桥墩有效宽度，根据截面形状调整。"""
@@ -102,16 +88,37 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     Fy_r_max = sigma_y**3 * np.pi**3 * radius_max**2 / (6 * modulus_eq**2)
     Fy_r_min = sigma_y**3 * np.pi**3 * radius_min**2 / (6 * modulus_eq**2)
 
-    if dem_velocity <= velocity_y:
-        print('\tdem_velocity <= velocity_y !', 'dem_velocity=', np.round(dem_velocity,3), 'velocity_y=',np.round(velocity_y,3))
-        F_single_min = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_min**2
-        F_single_max = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_max**2
-        E_Fmax = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
-    else:
-        print('\tdem_velocity > velocity_y !', 'dem_velocity=', np.round(dem_velocity,3), 'velocity_y=',np.round(velocity_y,3))
-        F_single_min = np.sqrt(Fy_r_min**2 +  np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_min**3 * (dem_velocity**2 - velocity_y**2)*radius_min)
-        F_single_max = np.sqrt(Fy_r_max**2 +  np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_max**3 * (dem_velocity**2 - velocity_y**2)*radius_max)
-        E_Fmax = 1/3 * (radius_max**2 + radius_max*radius_min + radius_min**2) * np.sqrt(sigma_y**6*np.pi**6/(36*modulus_eq**4) + 4/3*np.pi**2 * sigma_y * dem_density * (dem_velocity**2 - velocity_y**2))
+    F_single_min = np.zeros_like(dem_velocity)
+    F_single_max = np.zeros_like(dem_velocity)
+    E_Fmax = np.zeros_like(dem_velocity)
+
+
+    mask_low = dem_velocity <= velocity_y      # 低速掩码，True表示速度小于等于临界速度
+    mask_high = ~mask_low                       # 高速掩码，True表示速度大于临界速度
+    
+    # 计算低速分支结果
+    F_single_min_low = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_min**2
+    F_single_max_low = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_max**2
+    E_Fmax_low = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
+    
+    # 计算高速分支结果
+    v_diff_sq = dem_velocity**2 - velocity_y**2
+    F_single_min_high = np.sqrt(Fy_r_min**2 + np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_min**3 * v_diff_sq * radius_min)
+    F_single_max_high = np.sqrt(Fy_r_max**2 + np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_max**3 * v_diff_sq * radius_max)
+    E_Fmax_high = (1/3) * (radius_max**2 + radius_max*radius_min + radius_min**2) * np.sqrt(sigma_y**6 * np.pi**6 / (36 * modulus_eq**4) + 4/3 * np.pi**2 * sigma_y * dem_density * v_diff_sq)
+    
+    # 用mask选择结果，分别赋值
+    F_single_min = np.zeros_like(dem_velocity)
+    F_single_min[mask_low] = F_single_min_low[mask_low]
+    F_single_min[mask_high] = F_single_min_high[mask_high]
+    
+    F_single_max = np.zeros_like(dem_velocity)
+    F_single_max[mask_low] = F_single_max_low[mask_low]
+    F_single_max[mask_high] = F_single_max_high[mask_high]
+    
+    E_Fmax = np.zeros_like(dem_velocity)
+    E_Fmax[mask_low] = E_Fmax_low[mask_low]
+    E_Fmax[mask_high] = E_Fmax_high[mask_high]
 
     return velocity_y, F_single_min, F_single_max, E_Fmax
 
@@ -181,39 +188,103 @@ def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, 
 
 def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
     """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
-    flow_time = 1  # s
+    try:
+        # 确保输入参数为numpy数组
+        DEM_flow_rate = np.array(DEM_flow_rate, dtype=float)
+        impact_duration = np.array(impact_duration, dtype=float)
+        E_Fmax = np.array(E_Fmax, dtype=float)
+        
+        flow_time = np.ones_like(E_Fmax)  # s
+        volume_total = DEM_flow_rate * flow_time
+        radius_avg = (radius_max + radius_min) / 2
+        number_of_DEM = np.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3)))
+        t_per_DEM = flow_time / number_of_DEM
+        angle_impact = np.sin(np.radians(impact_angle_deg))
+
+        # 计算 num_pieces 并确保其为整数
+        num_pieces = np.maximum(np.ceil(impact_duration / t_per_DEM), 1).astype(int)
+        num_points = 1000
+
+        coeff_sin_total = np.zeros_like(E_Fmax)
+
+        # 向量化计算
+        for k in range(len(E_Fmax)):
+            t_pieces = np.linspace(0, impact_duration[k], num_pieces[k] * num_points).reshape(num_pieces[k], num_points)
+            t_per_DEM_k = t_per_DEM[k]
+            sin_total = np.zeros((num_pieces[k], num_points))
+
+            for i in range(num_pieces[k]):
+                t_piece = t_pieces[i]
+                sin_array = np.sin((np.pi / impact_duration[k]) * (t_piece - t_per_DEM_k * np.arange(i + 1).reshape(-1, 1)))
+                sin_array[sin_array < 0] = 0
+                sin_total[i] = np.sum(sin_array, axis=0)
+                #print('i=', i, 'k=', k)
+
+            coeff_sin_total[k] = np.max(sin_total)
+
+            # 移除绘图代码，以减少不必要的计算和提高效率
+            # plt.plot(t_pieces[i], sin_total[i], '-*')
+            # plt.xlabel('Time (s)')
+            # plt.ylabel('Function value')
+            # plt.title('Function value over time')
+            # plt.show()
+
+        # 根据桥墩形状设置 gamma_space
+        if Pier_shape == 'round':
+            gamma_space = np.pi / 4
+        elif Pier_shape == 'square':
+            gamma_space = 1
+        else:    
+            raise ValueError('Shape Of Section Not Found!')
+
+        # 计算总冲击力
+        total_force = gamma_space * angle_impact * coeff_sin_total * E_Fmax
+        return num_pieces, t_per_DEM, total_force
+
+    except Exception as e:
+        print(f"Error in compute_total_impact_force_sine: {e}")
+        return None, None, None
+
+
+def compute_total_impact_force_sine_old(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
+    """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
+    flow_time = np.ones_like(E_Fmax)  # s
     volume_total = DEM_flow_rate * flow_time
     radius_avg = (radius_max + radius_min)/2
-    number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    number_of_DEM = np.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
     t_per_DEM = flow_time / number_of_DEM
     angle_impact = np.sin(np.radians(impact_angle_deg))
 
-    num_pieces = max(math.ceil(impact_duration/t_per_DEM),1)
+    num_pieces = np.maximum(np.ceil(impact_duration/t_per_DEM),1).astype(int)
     num_points = 1000
 
-    t_pieces  = np.zeros((num_pieces,num_points)) 
-    sin_total = np.zeros((num_pieces,num_points))
-    cos_total = np.zeros((num_pieces,num_points))
+    coeff_sin_total = np.zeros_like(E_Fmax)
 
-    for i in range(num_pieces):
-        sin_array = np.zeros((1,num_points))
-        t_pieces[i] = np.linspace(i*t_per_DEM, (i+1)*t_per_DEM, num_points)
+    for k in range(len(E_Fmax)):
+        t_pieces  = np.zeros((num_pieces[k],num_points)) 
+        sin_total = np.zeros((num_pieces[k],num_points))
 
-        for j in range(i+1):
-            sin_array = np.sin((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
-
-            sin_array[sin_array < 0] = 0
-
-            sin_total[i] = sin_total[i] + sin_array
-            
-        plt.plot(t_pieces[i], sin_total[i],'-*')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Function value')
-        plt.title('Function value over time')
-
-    plt.plot(np.array([0,impact_duration]),np.array([np.max(sin_total), np.max(sin_total)]),'-.*r')
-    plt.plot(np.array([impact_duration,impact_duration]),np.array([0, np.max(sin_total)]),'-.*r')
-    plt.show()
+        for i in range(num_pieces[k]):
+            sin_array = np.zeros(num_points)
+            t_pieces[i] = np.linspace(i*t_per_DEM[k], (i+1)*t_per_DEM[k], num_points)
+    
+            for j in range(i+1):
+                sin_array = np.sin((np.pi/impact_duration[k])*(t_pieces[i]-j*t_per_DEM[k]))
+    
+                sin_array[sin_array < 0] = 0
+    
+                sin_total[i] = sin_total[i] + sin_array
+                #print(f"i={i}, j={j},k={k}")
+                
+            plt.plot(t_pieces[i], sin_total[i],'-*')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Function value')
+            plt.title('Function value over time')
+        #plt.show()
+        coeff_sin_total[k] = np.max(sin_total)
+        #plt.plot(np.array([0,impact_duration]),np.array([np.max(sin_total), np.max(sin_total)]),'-.*r')
+        #plt.plot(np.array([impact_duration,impact_duration]),np.array([0, np.max(sin_total)]),'-.*r')
+        #plt.show()
 
     if Pier_shape == 'round':
         gamma_space = np.pi/4
@@ -222,7 +293,7 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
     else:    
         raise ValueError('Shape Of Section Not Found!')
 
-    total_force = gamma_space * angle_impact * np.max(sin_total) * E_Fmax
+    total_force = gamma_space * angle_impact * coeff_sin_total * E_Fmax
 
     return num_pieces, t_per_DEM, total_force
 
@@ -230,53 +301,59 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    DEM_Volumn = 2000      # 碎屑流方量：m^3
-    DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))      
+    case_number = 10
+    DEM_Volumn = 16000 * np.ones(case_number)      # 碎屑流方量：m^3
+    DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))
+    print('DEM_depth:', DEM_depth)      
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 10.8      # m/s
-    DEM_density = 2550      # kg/m3  花岗岩密度2500kg/m3
-    DEM_modulus = 50e9      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.2          # Poisson's ratio  花岗岩泊松比0.1-0.3
-    radius_min = 0.6  # m
-    radius_max = 1.2  # m
-    ratio_solid = np.pi/6.0 # 固相体积分数np.pi/6.0
-    impact_angle_deg = 90   # 冲击角度 °
+    DEM_velocity = np.linspace(4, 8.5, case_number)      # m/s
+    DEM_density = 2550 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
+    DEM_modulus = 50e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
+    DEM_miu = 0.2 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
+
+    radius_min = 1.2 * np.ones(case_number)  # m
+    radius_max = 1.2 * np.ones(case_number)  # m
+
+    ratio_solid = np.pi/6.0 * np.ones(case_number) # 固相体积分数np.pi/6.0
+    impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
     
     # Pier_shape = 'square'
     Pier_shape = 'round'
-    Pier_width = 2.2        # m
-    Pier_modulus = 30e9    # Pa 混凝土弹性模量:31GPa
-    Pier_miu = 0.2          # 混凝土Poisson's ratio ：0.2
-    sigma_y = 30e6          # Pa C30混凝土强度:30 MPa
+    Pier_width = 2.2 * np.ones(case_number)        # m
+    Pier_modulus = 30e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
+    Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
+    Pier_strength = 30e6 * np.ones(case_number)          # Pa C30混凝土强度:30 MPa
     
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     DEM_flow_rate = compute_effective_flow_rate(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
+    sigma_y = np.minimum(DEM_strength, Pier_strength)
 
     # 计算冲击时间
-    impact_duration_elastic = compute_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu)[0]
-    impact_duration_elastoplastic = compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
-    print('impact_duration_elastic =', np.round(impact_duration_elastic,9), 's')
-    print('impact_duration_elastoplastic =', np.round(impact_duration_elastoplastic,9), 's')
+    impact_duration_elastic, impact_duration_elastoplastic = compute_elastoplastic_impact_duration(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
+    #print('impact_duration_elastic =', np.round(impact_duration_elastic,9), 's')
+    #print('impact_duration_elastoplastic =', np.round(impact_duration_elastoplastic,9), 's')
 
     # 计算等效弹性模量
     modulus_equ = 1 / ((1-Pier_miu**2) / Pier_modulus + (1-DEM_miu**2) / DEM_modulus)
 
     # Hertz弹性接触理论计算冲击力（接触力）
     force_min, force_max, force_equ, force_average = compute_Hertz_contact_forces(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity)
-    print('[Hertz Elastic Theory]: ', '\n\tF_min=', np.round(force_min,3), 'F_max=',np.round(force_max,3), 'F_equ=', np.round(force_equ,3),'F_average=',np.round(force_average,3),'N')
+    #print('[Hertz Elastic Theory]: ', '\n\tF_min=', np.round(force_min/1000,3), '\n\tF_max=',np.round(force_max/1000,3),'\n\tF_average=',np.round(force_average/1000,3),'kN')
 
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
-    print('[Thornton Elasto-Plastic Theory]: ')
+    #print('[Thornton Elasto-Plastic Theory]: ')
     v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y)
-    print(f'\tF_min = {np.round(F_min,3)}, F_max = {np.round(F_max,3)}, force_average = {np.round(E_Fmax,3)}', 'N')
+    #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
     # 碰撞过程时间离散性和总冲击力
     #num_pieces, t_per_DEM, total_force = compute_total_impact_force_triangle( DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
+    num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine_old(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    
+    print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), '\n\tDEM_velocity=', DEM_velocity, '\n\ttotal_force =', np.round(total_force/1000,3), 'kN')
     
 
     ''' 
