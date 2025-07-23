@@ -103,12 +103,12 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     Fy_r_min = sigma_y**3 * np.pi**3 * radius_min**2 / (6 * modulus_eq**2)
 
     if dem_velocity <= velocity_y:
-        print('\tdem_velocity <= velocity_y !', 'dem_velocity=', np.round(dem_velocity,3), 'velocity_y=',np.round(velocity_y,3))
+        print('\tdem_velocity <= velocity_y !', 'dem_velocity=', np.round(dem_velocity,3), 'velocity_y=',np.round(velocity_y,6))
         F_single_min = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_min**2
         F_single_max = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_max**2
         E_Fmax = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
     else:
-        print('\tdem_velocity > velocity_y !', 'dem_velocity=', np.round(dem_velocity,3), 'velocity_y=',np.round(velocity_y,3))
+        print('\tdem_velocity > velocity_y !', 'dem_velocity=', np.round(dem_velocity,3), 'velocity_y=',np.round(velocity_y,6))
         F_single_min = np.sqrt(Fy_r_min**2 +  np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_min**3 * (dem_velocity**2 - velocity_y**2)*radius_min)
         F_single_max = np.sqrt(Fy_r_max**2 +  np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_max**3 * (dem_velocity**2 - velocity_y**2)*radius_max)
         E_Fmax = 1/3 * (radius_max**2 + radius_max*radius_min + radius_min**2) * np.sqrt(sigma_y**6*np.pi**6/(36*modulus_eq**4) + 4/3*np.pi**2 * sigma_y * dem_density * (dem_velocity**2 - velocity_y**2))
@@ -228,7 +228,26 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
 
 if __name__ == '__main__':
     # 参数定义
+    
+    # Wang et al. 2025 参数
+    DEM_density = 2550      # kg/m3
+    DEM_depth = 0.05        # m
+    DEM_modulus = 60e9      # Pa
+    DEM_miu = 0.25          # Poisson’s ratio
+    DEM_velocity = 1.6      # m/s
+    radius_min = 4.0e-3     # m
+    radius_max = 4.0e-3     # m
+    ratio_solid = 0.45      # 固相体积分数
+    impact_angle_deg = 72   # 冲击角度 °
 
+    #Pier_shape = 'square'
+    Pier_shape = 'round'
+    Pier_width = 0.1
+    Pier_modulus = 3.2e9    # Pa
+    Pier_miu = 0.35         # Poisson’s ratio
+    sigma_y = 30e6          # Pa
+    
+    '''
     # This study
     DEM_Volumn = 2000      # 碎屑流方量：m^3
     DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))      
@@ -239,7 +258,7 @@ if __name__ == '__main__':
     DEM_density = 2550      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 50e9      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.2          # Poisson's ratio  花岗岩泊松比0.1-0.3
-    radius_min = 0.6  # m
+    radius_min = 0.3  # m
     radius_max = 1.2  # m
     ratio_solid = np.pi/6.0 # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
@@ -250,7 +269,7 @@ if __name__ == '__main__':
     Pier_modulus = 30e9    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.2          # 混凝土Poisson's ratio ：0.2
     sigma_y = 30e6          # Pa C30混凝土强度:30 MPa
-    
+    '''
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     DEM_flow_rate = compute_effective_flow_rate(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
@@ -297,7 +316,6 @@ if __name__ == '__main__':
     Pier_modulus = 3.0e9    # Pa PMMA:3.0GPa
     Pier_miu = 0.3          # Poisson's ratio 
     sigma_y = 50e6          # Pa PMMA:50 - 77 MPa
-    
 
     # Barbara et al. 2010 参数
     DEM_density = 1530      # kg/m3
@@ -329,7 +347,6 @@ if __name__ == '__main__':
     ratio_solid = np.pi/6.0 # 固相体积分数
     impact_angle_deg = 60   # 冲击角度 °
 
-    #Pier_shape = 'square'
     Pier_shape = 'round'
     Pier_width = 1.8        # m
     Pier_modulus = 32.5e9   # Pa 30GPa - 32.5GPa
