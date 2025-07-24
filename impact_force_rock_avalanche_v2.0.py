@@ -115,119 +115,6 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
 
     return velocity_y, F_single_min, F_single_max, E_Fmax
 
-def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
-    """根据三角形脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
-    flow_time = 1  # s
-    volume_total = DEM_flow_rate * flow_time
-    #radius_avg = np.sqrt(1/3 * (radius_max**2 + radius_max*radius_min + radius_min**2))
-    radius_avg = (radius_max + radius_min)/2
-    number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    t_per_DEM = flow_time / number_of_DEM
-    num_pieces = max(math.ceil(impact_duration/t_per_DEM),1)
-
-    array_size = 100
-
-    length = array_size // 2
-    if array_size % 2 == 0:
-        front = np.linspace(0, 1, length)
-        end = np.linspace(1, 0, length)
-        pulse_array = np.concatenate([front, end[1:], np.array([0])])
-    else:
-        front = np.linspace(0, 1, length + 1)
-        end = np.linspace(1, 0, length + 1)
-        pulse_array = np.concatenate([front, end[1:]])  # 例如 array_size = 101
-    pulse_array = pulse_array[:array_size]  # 最终强制长度一致（保险）
-
-    multi_pulse_arrays = []
-    length_add = round(length * 2*t_per_DEM/impact_duration)
-    # 对基础数组进行平移，生成其余数组
-    for i in range(num_pieces):
-        shifted_array = np.concatenate([np.zeros(i*length_add), pulse_array, np.zeros((num_pieces - i-1)*length_add)])
-        multi_pulse_arrays.append(shifted_array)
-    
-    time_pulse = np.linspace(0, (len(shifted_array) - 1) * t_per_DEM, len(shifted_array))
-
-    # 将所有数组进行求和
-    sum_array = np.sum(multi_pulse_arrays, axis=0)
-
-    # 绘制所有数组和它们的和
-    for i, array in enumerate(multi_pulse_arrays):
-        plt.plot(time_pulse, array, label=f'Array {i+1}')
-
-    plt.plot(time_pulse,sum_array, label='Sum of Arrays', color='red', linewidth=2)
-    plt.legend()
-    plt.title('三角脉冲波形之和 vs 时间')
-    plt.xlabel('时间(s)')
-    plt.ylabel('脉冲强度')
-    plt.grid(True)
-    plt.show()
-
-    angle_impact = np.sin(np.radians(impact_angle_deg))
-
-    if Pier_shape == 'round':
-        gamma_space = 0.65          # np.pi/4
-    elif Pier_shape =='square':
-        gamma_space = 1
-    else:    
-        raise ValueError('Shape Of Section Not Found!')
-    
-    if t_per_DEM >= (impact_duration/2):
-        total_force = gamma_space * angle_impact * E_Fmax
-    else:
-        total_force = gamma_space * angle_impact * E_Fmax * np.max(sum_array)
-    
-    print('gamma_space=',gamma_space,'angle_impact=',angle_impact,'gamma_t=',np.max(sum_array),'E_Fmax=',E_Fmax,'total_force=',total_force)
-
-    return num_pieces, t_per_DEM, total_force
-
-def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
-    """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
-    flow_time = 1  # s
-    volume_total = DEM_flow_rate * flow_time
-    radius_avg = (radius_max + radius_min)/2
-    number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    t_per_DEM = flow_time / number_of_DEM
-    angle_impact = np.sin(np.radians(impact_angle_deg))
-
-    num_pieces = max(math.ceil(impact_duration/t_per_DEM),1)
-    num_points = 10001
-
-    t_pieces  = np.zeros((num_pieces,num_points)) 
-    sin_total = np.zeros((num_pieces,num_points))
-
-    for i in range(num_pieces):
-        sin_array = np.zeros((1,num_points))
-        t_pieces[i] = np.linspace(i*t_per_DEM, (i+1)*t_per_DEM, num_points)
-
-        for j in range(i+1):
-            sin_array = np.sin((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
-            sin_array[sin_array < 0] = 0
-            plt.plot(t_pieces[i], sin_array,'-')
-
-            sin_total[i] = sin_total[i] + sin_array
-            
-        plt.plot(t_pieces[i], sin_total[i],'-*')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Function value')
-        plt.title('Function value over time')
-
-    plt.plot(np.array([0,impact_duration]),np.array([np.max(sin_total), np.max(sin_total)]),'-.*r')
-    plt.plot(np.array([impact_duration,impact_duration]),np.array([0, np.max(sin_total)]),'-.*r')
-    plt.show()
-
-    if Pier_shape == 'round':
-        gamma_space = 0.65          # np.pi/4
-    elif Pier_shape =='square':
-        gamma_space = 1
-    else:    
-        raise ValueError('Shape Of Section Not Found!')
-    gamma_t = np.max(sin_total)
-
-    total_force = gamma_space * angle_impact * gamma_t * E_Fmax
-    print('gamma_t=',np.max(sin_total),'gamma_s=',gamma_space,'angle_impact=',angle_impact,'E_Fmax=',E_Fmax,'total_force=',total_force)
-    total_force_simplify = gamma_space * angle_impact * gamma_t * E_Fmax
-
-    return num_pieces, t_per_DEM, total_force
 
 def generate_waveform(wave_type, num_points_wave, amplitude=1.0):
     """生成基础单峰波形"""
@@ -254,23 +141,23 @@ def generate_waveform(wave_type, num_points_wave, amplitude=1.0):
     else:
         raise ValueError(f"Unsupported wave type: {wave_type}")
 
-def addition_waveforms(wave_type, wave_duration, delta_t, amplitude=1.0, num_steps_delta=10000):
+def addition_waveforms(wave_type, wave_duration, delta_t, amplitude=1.0, num_steps=1000):
     """生成波形序列并求叠加"""
     num_waves = int(wave_duration / delta_t) + 1  # 计算冲击时长内的重叠波形数量
-    time_step = delta_t / num_steps_delta
-    num_points_wave = int(wave_duration/time_step) + 1    # 计算单个波形的采样点数
+    time_step = wave_duration / num_steps
+    num_shift_steps = round(delta_t / time_step)  
 
-    shift_steps = max(1, num_steps_delta)
-    total_points = (num_waves - 1) * shift_steps + num_points_wave
+    shift_steps = max(1, num_shift_steps)
+    total_points = (num_waves - 1) * shift_steps + num_steps + 1
     time_values = np.arange(total_points) * time_step
 
-    base_wave = generate_waveform(wave_type, num_points_wave, amplitude)
+    base_wave = generate_waveform(wave_type, num_steps+1, amplitude)
     total_wave = np.zeros(total_points)
 
     for i in range(num_waves):
         wave = np.zeros(total_points)
         start = i * shift_steps
-        end = min(start + num_points_wave, total_points)
+        end = min(start + num_steps + 1, total_points)
         length = end - start
         wave[start:end] = base_wave[:length]
         plt.plot(time_values, wave, '-o', label=f'Wave {i+1}')
@@ -280,31 +167,29 @@ def addition_waveforms(wave_type, wave_duration, delta_t, amplitude=1.0, num_ste
 
     return np.max(total_wave)
 
+def compute_gamma_s(pier_shape):
+    if Pier_shape == 'round':
+        gamma_s = 0.65          # np.pi/4
+    elif Pier_shape =='square':
+        gamma_s = 1
+    else:    
+        raise ValueError('Shape Of Section Not Found!')
+    return gamma_s
+
+def compute_delta_t(DEM_flow_rate, flow_time, radius_max, radius_min, ratio_solid):
+    flow_time = 1  # s
+    volume_total = DEM_flow_rate * flow_time
+    radius_avg = (radius_max + radius_min)/2
+    number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    delta_t = flow_time / number_of_DEM
+
+    return delta_t
 
 
 
 if __name__ == '__main__':
     # 参数定义
-    '''    
-    # Wang et al. 2025 参数
-    DEM_density = 2550      # kg/m3
-    DEM_depth = 0.05        # m
-    DEM_modulus = 60e9      # Pa
-    DEM_miu = 0.25          # Poisson’s ratio
-    DEM_velocity = 1.6      # m/s
-    radius_min = 4.0e-3     # m
-    radius_max = 4.0e-3     # m
-    ratio_solid = 0.45      # 固相体积分数
-    impact_angle_deg = 72   # 冲击角度 °
 
-    #Pier_shape = 'square'
-    Pier_shape = 'round'
-    Pier_width = 0.1
-    Pier_modulus = 3.2e9    # Pa
-    Pier_miu = 0.35         # Poisson’s ratio
-    sigma_y = 30e6          # Pa
-    
-    '''
     # This study
     DEM_Volumn = 4000      # 碎屑流方量：m^3
     DEM_depth = (3.8 + (8.25-3.8)/(4000-1000) * (DEM_Volumn-1000))      
@@ -350,34 +235,38 @@ if __name__ == '__main__':
     print(f'\tF_min = {np.round(F_min,3)}, F_max = {np.round(F_max,3)}, force_average = {np.round(E_Fmax,3)}', 'N')
 
     # 碰撞过程时间离散性和总冲击力
-    #num_pieces, t_per_DEM, total_force = compute_total_impact_force_triangle( DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
-    
-    if Pier_shape == 'round':
-        gamma_s = 0.65          # np.pi/4
-    elif Pier_shape =='square':
-        gamma_s = 1
-    else:    
-        raise ValueError('Shape Of Section Not Found!')
-    
-    flow_time = 1  # s
-    volume_total = DEM_flow_rate * flow_time
-    radius_avg = (radius_max + radius_min)/2
-    number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    delta_t = flow_time / number_of_DEM
 
     wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian']
-    wave_duration = impact_duration_elastoplastic  # 每个波的持续时间
     wave_type = wave_types[0]
 
-    gamma_t = addition_waveforms(wave_type,wave_duration,delta_t)
+    delta_t = compute_delta_t(DEM_flow_rate, impact_duration_elastoplastic, radius_max, radius_min, ratio_solid)
+    gamma_t = addition_waveforms(wave_type,impact_duration_elastoplastic,delta_t)
     angle_factor = np.sin(np.radians(impact_angle_deg))
+    gamma_s = compute_gamma_s(Pier_shape)
 
-    total_force2 = gamma_t * gamma_s * angle_factor * E_Fmax
-    print('gamma_t=', gamma_t, 'gamma_s=', gamma_s, 'angle_factor=', angle_factor, 'E_Fmax=', E_Fmax,'total_force2=', total_force2)
+    total_force = gamma_t * gamma_s * angle_factor * E_Fmax
+    print('gamma_t=', gamma_t, 'gamma_s=', gamma_s, 'angle_factor=', angle_factor, 'E_Fmax=', E_Fmax,'total_force=', total_force)
 
-    ''' 
+    '''     
+    # Wang et al. 2025 参数
+    DEM_density = 2550      # kg/m3
+    DEM_depth = 0.05        # m
+    DEM_modulus = 60e9      # Pa
+    DEM_miu = 0.25          # Poisson’s ratio
+    DEM_velocity = 1.6      # m/s
+    radius_min = 4.0e-3     # m
+    radius_max = 4.0e-3     # m
+    ratio_solid = 0.45      # 固相体积分数
+    impact_angle_deg = 72   # 冲击角度 °
+
+    #Pier_shape = 'square'
+    Pier_shape = 'round'
+    Pier_width = 0.1
+    Pier_modulus = 3.2e9    # Pa
+    Pier_miu = 0.35         # Poisson’s ratio
+    sigma_y = 30e6          # Pa
+    
+    
     # Choi et al. 2020参数
     DEM_velocity = 1.8      # m/s
     DEM_depth = 0.031       # m
