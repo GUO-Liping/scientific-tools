@@ -151,7 +151,6 @@ def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, 
     sum_array = np.sum(multi_pulse_arrays, axis=0)
 
     # 绘制所有数组和它们的和
-    plt.figure(figsize=(10, 6))
     for i, array in enumerate(multi_pulse_arrays):
         plt.plot(time_pulse, array, label=f'Array {i+1}')
 
@@ -166,7 +165,7 @@ def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, 
     angle_impact = np.sin(np.radians(impact_angle_deg))
 
     if Pier_shape == 'round':
-        gamma_space = np.pi/4
+        gamma_space = 0.65          # np.pi/4
     elif Pier_shape =='square':
         gamma_space = 1
     else:    
@@ -177,6 +176,8 @@ def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, 
     else:
         total_force = gamma_space * angle_impact * E_Fmax * np.max(sum_array)
     
+    print('gamma_space=',gamma_space,'angle_impact=',angle_impact,'gamma_t=',np.max(sum_array),'E_Fmax=',E_Fmax,'total_force=',total_force)
+
     return num_pieces, t_per_DEM, total_force
 
 def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
@@ -189,8 +190,7 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
     angle_impact = np.sin(np.radians(impact_angle_deg))
 
     num_pieces = max(math.ceil(impact_duration/t_per_DEM),1)
-    gamma_t = max(0.5*(impact_duration/t_per_DEM),1)
-    num_points = 1000
+    num_points = 100
 
     t_pieces  = np.zeros((num_pieces,num_points)) 
     sin_total = np.zeros((num_pieces,num_points))
@@ -202,8 +202,8 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
 
         for j in range(i+1):
             sin_array = np.sin((np.pi/impact_duration)*(t_pieces[i]-j*t_per_DEM))
-
             sin_array[sin_array < 0] = 0
+            plt.plot(t_pieces[i], sin_array,'-')
 
             sin_total[i] = sin_total[i] + sin_array
             
@@ -222,11 +222,66 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
         gamma_space = 1
     else:    
         raise ValueError('Shape Of Section Not Found!')
+    gamma_t = np.max(sin_total)
 
-    total_force = gamma_space * angle_impact * np.max(sin_total) * E_Fmax
+    total_force = gamma_space * angle_impact * gamma_t * E_Fmax
+    print('gamma_t=',np.max(sin_total),'gamma_s=',gamma_space,'angle_impact=',angle_impact,'E_Fmax=',E_Fmax,'total_force=',total_force)
     total_force_simplify = gamma_space * angle_impact * gamma_t * E_Fmax
 
-    return num_pieces, t_per_DEM, total_force_simplify
+    return num_pieces, t_per_DEM, total_force
+
+def generate_waveform(wave_type, num_points=100, amplitude=1.0):
+    """生成基础单峰波形"""
+    x = np.linspace(0, 1, num_points)
+
+    if wave_type == 'sine':
+        return amplitude * np.sin(np.pi * x)
+    
+    elif wave_type == 'triangle':
+        half = round(num_points / 2)
+        rise = np.linspace(0, amplitude, half)
+        fall = np.linspace(amplitude, 0, half)
+        return np.concatenate((rise, fall[1:],np.array([0])),axis=0)
+    
+    elif wave_type == 'square':
+        return np.full(num_points, amplitude)
+    
+    elif wave_type == 'sawtooth':
+        return amplitude * x
+
+    elif wave_type == 'gaussian':
+        return amplitude * np.exp(-20 * (x - 0.5) ** 2)
+    
+    else:
+        raise ValueError(f"Unsupported wave type: {wave_type}")
+
+def addition_waveforms(wave_type, wave_duration, delta_t, amplitude=1.0, num_points=100):
+    """生成波形序列并求叠加"""
+    time_step = wave_duration / num_points
+    num_waves = int(wave_duration / delta_t) + 1
+
+    shift_points = max(1, int(round(delta_t / time_step)))
+    total_points = (num_waves - 1) * shift_points + num_points
+    time_values = np.arange(total_points) * time_step
+
+    base_wave = generate_waveform(wave_type, num_points, amplitude)
+    total_wave = np.zeros(total_points)
+
+    for i in range(num_waves):
+        wave = np.zeros(total_points)
+        start = i * shift_points
+        end = min(start + num_points, total_points)
+        length = end - start
+        wave[start:end] = base_wave[:length]
+        plt.plot(time_values, wave, label=f'Wave {i+1}')
+        total_wave += wave
+    plt.plot(time_values, total_wave, label='Total Wave')
+    plt.show()
+
+    return np.max(total_wave)
+
+
+
 
 if __name__ == '__main__':
     # 参数定义
@@ -299,6 +354,28 @@ if __name__ == '__main__':
     num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
     print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), 'total_force =', np.round(total_force,3), 'N')
     
+    if Pier_shape == 'round':
+        gamma_s = 0.65          # np.pi/4
+    elif Pier_shape =='square':
+        gamma_s = 1
+    else:    
+        raise ValueError('Shape Of Section Not Found!')
+    
+    flow_time = 1  # s
+    volume_total = DEM_flow_rate * flow_time
+    radius_avg = (radius_max + radius_min)/2
+    number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    delta_t = flow_time / number_of_DEM
+
+    wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian']
+    wave_duration = impact_duration_elastoplastic  # 每个波的持续时间
+    wave_type = wave_types[0]
+
+    gamma_t = addition_waveforms(wave_type,wave_duration,delta_t)
+    angle_factor = np.sin(np.radians(impact_angle_deg))
+
+    total_force2 = gamma_t * gamma_s * angle_factor * E_Fmax
+    print('gamma_t=', gamma_t, 'gamma_s=', gamma_s, 'angle_factor=', angle_factor, 'E_Fmax=', E_Fmax,'total_force2=', total_force2)
 
     ''' 
     # Choi et al. 2020参数
