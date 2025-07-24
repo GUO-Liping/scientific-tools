@@ -190,11 +190,10 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
     angle_impact = np.sin(np.radians(impact_angle_deg))
 
     num_pieces = max(math.ceil(impact_duration/t_per_DEM),1)
-    num_points = 100
+    num_points = 10001
 
     t_pieces  = np.zeros((num_pieces,num_points)) 
     sin_total = np.zeros((num_pieces,num_points))
-    cos_total = np.zeros((num_pieces,num_points))
 
     for i in range(num_pieces):
         sin_array = np.zeros((1,num_points))
@@ -230,21 +229,21 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
 
     return num_pieces, t_per_DEM, total_force
 
-def generate_waveform(wave_type, num_points=100, amplitude=1.0):
+def generate_waveform(wave_type, num_points_wave, amplitude=1.0):
     """生成基础单峰波形"""
-    x = np.linspace(0, 1, num_points)
+    x = np.linspace(0, 1, num_points_wave)
 
     if wave_type == 'sine':
         return amplitude * np.sin(np.pi * x)
     
     elif wave_type == 'triangle':
-        half = round(num_points / 2)
+        half = round(num_points_wave / 2)
         rise = np.linspace(0, amplitude, half)
         fall = np.linspace(amplitude, 0, half)
         return np.concatenate((rise, fall[1:],np.array([0])),axis=0)
     
     elif wave_type == 'square':
-        return np.full(num_points, amplitude)
+        return np.full(num_points_wave, amplitude)
     
     elif wave_type == 'sawtooth':
         return amplitude * x
@@ -255,27 +254,28 @@ def generate_waveform(wave_type, num_points=100, amplitude=1.0):
     else:
         raise ValueError(f"Unsupported wave type: {wave_type}")
 
-def addition_waveforms(wave_type, wave_duration, delta_t, amplitude=1.0, num_points=100):
+def addition_waveforms(wave_type, wave_duration, delta_t, amplitude=1.0, num_steps_delta=10000):
     """生成波形序列并求叠加"""
-    time_step = wave_duration / num_points
-    num_waves = int(wave_duration / delta_t) + 1
+    num_waves = int(wave_duration / delta_t) + 1  # 计算冲击时长内的重叠波形数量
+    time_step = delta_t / num_steps_delta
+    num_points_wave = int(wave_duration/time_step) + 1    # 计算单个波形的采样点数
 
-    shift_points = max(1, int(round(delta_t / time_step)))
-    total_points = (num_waves - 1) * shift_points + num_points
+    shift_steps = max(1, num_steps_delta)
+    total_points = (num_waves - 1) * shift_steps + num_points_wave
     time_values = np.arange(total_points) * time_step
 
-    base_wave = generate_waveform(wave_type, num_points, amplitude)
+    base_wave = generate_waveform(wave_type, num_points_wave, amplitude)
     total_wave = np.zeros(total_points)
 
     for i in range(num_waves):
         wave = np.zeros(total_points)
-        start = i * shift_points
-        end = min(start + num_points, total_points)
+        start = i * shift_steps
+        end = min(start + num_points_wave, total_points)
         length = end - start
         wave[start:end] = base_wave[:length]
-        plt.plot(time_values, wave, label=f'Wave {i+1}')
+        plt.plot(time_values, wave, '-o', label=f'Wave {i+1}')
         total_wave += wave
-    plt.plot(time_values, total_wave, label='Total Wave')
+    plt.plot(time_values, total_wave, '-o', label='Total Wave')
     plt.show()
 
     return np.max(total_wave)
