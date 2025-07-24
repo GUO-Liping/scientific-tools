@@ -189,6 +189,7 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
     angle_impact = np.sin(np.radians(impact_angle_deg))
 
     num_pieces = max(math.ceil(impact_duration/t_per_DEM),1)
+    gamma_t = max(0.5*(impact_duration/t_per_DEM),1)
     num_points = 1000
 
     t_pieces  = np.zeros((num_pieces,num_points)) 
@@ -216,19 +217,20 @@ def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radi
     plt.show()
 
     if Pier_shape == 'round':
-        gamma_space = np.pi/4
+        gamma_space = 0.65          # np.pi/4
     elif Pier_shape =='square':
         gamma_space = 1
     else:    
         raise ValueError('Shape Of Section Not Found!')
 
     total_force = gamma_space * angle_impact * np.max(sin_total) * E_Fmax
+    total_force_simplify = gamma_space * angle_impact * gamma_t * E_Fmax
 
-    return num_pieces, t_per_DEM, total_force
+    return num_pieces, t_per_DEM, total_force_simplify
 
 if __name__ == '__main__':
     # 参数定义
-    
+    '''    
     # Wang et al. 2025 参数
     DEM_density = 2550      # kg/m3
     DEM_depth = 0.05        # m
@@ -249,17 +251,17 @@ if __name__ == '__main__':
     
     '''
     # This study
-    DEM_Volumn = 2000      # 碎屑流方量：m^3
-    DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))      
+    DEM_Volumn = 4000      # 碎屑流方量：m^3
+    DEM_depth = (3.8 + (8.25-3.8)/(4000-1000) * (DEM_Volumn-1000))      
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 10.8      # m/s
-    DEM_density = 2550      # kg/m3  花岗岩密度2500kg/m3
+    DEM_velocity =(12.8 + (10.8-12.8)/(16000-1000) * (DEM_Volumn-1000))      # m/s
+    DEM_density = 2500      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 50e9      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.2          # Poisson's ratio  花岗岩泊松比0.1-0.3
     radius_min = 0.3  # m
-    radius_max = 1.2  # m
+    radius_max = 0.6  # m
     ratio_solid = np.pi/6.0 # 固相体积分数np.pi/6.0
     impact_angle_deg = 90   # 冲击角度 °
     
@@ -269,7 +271,7 @@ if __name__ == '__main__':
     Pier_modulus = 30e9    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.2          # 混凝土Poisson's ratio ：0.2
     sigma_y = 30e6          # Pa C30混凝土强度:30 MPa
-    '''
+
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     DEM_flow_rate = compute_effective_flow_rate(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
