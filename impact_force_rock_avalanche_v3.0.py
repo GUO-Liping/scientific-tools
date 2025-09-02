@@ -301,20 +301,20 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    case_number = 10
-    DEM_Volumn = 16000 * np.ones(case_number)      # 碎屑流方量：m^3
+    case_number = 16
+    DEM_Volumn = np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
     DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))
-    print('DEM_depth:', DEM_depth)      
+    print('DEM_Volumn:', DEM_Volumn)      
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = np.linspace(4, 8.5, case_number)      # m/s
+    DEM_velocity = 11.5 * np.ones(case_number)      # m/s
     DEM_density = 2550 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 50e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.2 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
 
-    radius_min = 1.2 * np.ones(case_number)  # m
+    radius_min = 0.6 * np.ones(case_number)  # m
     radius_max = 1.2 * np.ones(case_number)  # m
 
     ratio_solid = np.pi/6.0 * np.ones(case_number) # 固相体积分数np.pi/6.0
@@ -351,7 +351,7 @@ if __name__ == '__main__':
 
     # 碰撞过程时间离散性和总冲击力
     #num_pieces, t_per_DEM, total_force = compute_total_impact_force_triangle( DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
-    num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine_old(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
+    num_pieces, t_per_DEM, total_force = compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration_elastoplastic, E_Fmax)
     
     print('\tNumber of 3D prticles in a single period =', np.round(num_pieces), '\n\tt_per_DEM =', np.round(t_per_DEM,9), '\n\tDEM_velocity=', DEM_velocity, '\n\ttotal_force =', np.round(total_force/1000,3), 'kN')
     

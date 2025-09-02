@@ -178,7 +178,7 @@ def compute_gamma_s(pier_shape):
 
 def compute_delta_t(DEM_flow_rate, flow_time, radius_max, radius_min, ratio_solid):
     flow_time = 1  # s
-    volume_total = DEM_flow_rate * flow_time
+    volume_total = DEM_flow_rate * flow_time * 1.00
     radius_avg = (radius_max + radius_min)/2
     number_of_DEM = int(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
     print('\tnumber_of_DEM =', number_of_DEM)
@@ -187,20 +187,19 @@ def compute_delta_t(DEM_flow_rate, flow_time, radius_max, radius_min, ratio_soli
     return delta_t
 
 
-
 if __name__ == '__main__':
     # 参数定义
 
     # This study
-    DEM_Volumn = 1000      # 碎屑流方量：m^3
-    DEM_depth = (3.8 + (8.25-3.8)/(4000-1000) * (DEM_Volumn-1000))      
-    DEM_velocity = (12.8 + (10.8-12.8)/(16000-1000) * (DEM_Volumn-1000))      # m/s
-    DEM_density = 2550      # kg/m3  花岗岩密度2500kg/m3
+    DEM_Volumn = 16000      # 碎屑流方量：m^3
+    DEM_depth = (3.5 + (15.5-3.5)/(16000-1000) * (DEM_Volumn-1000))             # simple linear interpolation obtained from the simulation results (m)
+    DEM_velocity = (12.0 + (10.0-12.0)/(16000-1000) * (DEM_Volumn-1000))        # simple linear interpolation obtained from the simulation results (m/s)
+    DEM_density = 2500      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 50e9      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.2          # Poisson's ratio  花岗岩泊松比0.1-0.3
-    radius_min = 0.6  # m
+    radius_min = 0.3  # m
     radius_max = 1.2  # m
-    ratio_solid = (0.55 + (0.55-0.55)/(16000-1000) * (DEM_Volumn-1000)) # 固相体积分数np.pi/6.0
+    ratio_solid = 0.55  # 固相体积分数0.58-0.63 L. Carleo et al. 2019
     impact_angle_deg = 90   # 冲击角度 °
     
     # Pier_shape = 'square'
@@ -225,10 +224,10 @@ if __name__ == '__main__':
 
     # Hertz弹性接触理论计算冲击力（接触力）
     force_min_e, force_max_e, force_equ_e, E_Fmax_e = compute_Hertz_contact_forces(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity)
-    print('[Hertz Elastic Theory]: ', '\n\tF_min_e=', np.round(force_min_e,3), 'F_max_e=',np.round(force_max_e,3), 'F_equ_e=', np.round(force_equ_e,3),'E_Fmax_e=',np.round(E_Fmax_e,3),'N')
+    print('[Hertz Elastic Theory]: ', '\n\tF_min_e=', np.round(force_min_e/1000,3), 'F_max_e=',np.round(force_max_e/1000,3), 'E_Fmax_e=',np.round(E_Fmax_e/1000,3),'kN')
 
     wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian']
-    wave_type = wave_types[1]
+    wave_type = wave_types[0]
 
     delta_te = compute_delta_t(DEM_flow_rate, impact_duration_elastic, radius_max, radius_min, ratio_solid)
     gamma_te = addition_waveforms(wave_type,impact_duration_elastoplastic,delta_te)
@@ -236,12 +235,12 @@ if __name__ == '__main__':
     gamma_se = compute_gamma_s(Pier_shape)
 
     total_force_e = gamma_te * gamma_se * angle_e * E_Fmax_e
-    print('gamma_te=', gamma_te, 'gamma_se=', gamma_se, 'angle_e=', angle_e, 'E_Fmax_e=', E_Fmax_e,'total_force_e=', total_force_e)
+    print(f'\tTotal_force_e={np.round(total_force_e/1000,3)}', 'kN')
 
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
     print('[Thornton Elasto-Plastic Theory]: ')
     v_y, F_min_p, F_max_p, E_Fmax_p = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y)
-    print(f'\tF_min_p = {np.round(F_min_p,3)}, F_max_p = {np.round(F_max_p,3)}, force_average_p = {np.round(E_Fmax_p,3)}', 'N')
+    print(f'\tF_min_p = {np.round(F_min_p/1000,3)}, F_max_p = {np.round(F_max_p/1000,3)}, E_Fmax_p = {np.round(E_Fmax_p/1000,3)}', 'kN')
 
     # 碰撞过程时间离散性和总冲击力
     delta_tp = compute_delta_t(DEM_flow_rate, impact_duration_elastoplastic, radius_max, radius_min, ratio_solid)
@@ -250,7 +249,7 @@ if __name__ == '__main__':
     gamma_sp = compute_gamma_s(Pier_shape)
 
     total_force_p = gamma_tp * gamma_sp * angle_p * E_Fmax_p
-    print('gamma_tp=', gamma_tp, 'gamma_s=', gamma_sp, 'angle_p=', angle_p, 'E_Fmax_p=', E_Fmax_p,'total_force_p=', total_force_p)
+    print(f'\tTotal_force_p={np.round(total_force_p/1000,3)}', 'kN')
 
     '''     
     # Wang et al. 2025 参数
