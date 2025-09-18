@@ -92,22 +92,28 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     F_single_max = np.zeros_like(dem_velocity)
     E_Fmax = np.zeros_like(dem_velocity)
 
-
-    mask_low = dem_velocity <= velocity_y      # 低速掩码，True表示速度小于等于临界速度
-    mask_high = ~mask_low                       # 高速掩码，True表示速度大于临界速度
-    
-    # 计算低速分支结果
+    # 计算弹性碰撞结果
     F_single_min_low = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_min**2
     F_single_max_low = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_max**2
     E_Fmax_low = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
-    
-    # 计算高速分支结果
+    def integrand_unif_distribute(x):
+        return 1 / np.sqrt(1 - x**(5/2))
+    EFmax_result, EFmax_error = quad(integrand, 0, 1)
+    def integrand_expo_distribute(x):
+        return 1 / np.sqrt(1 - x**(5/2))
+    def integrand_norm_distribute(x):
+        return 1 / np.sqrt(1 - x**(5/2))
+
+    # 计算塑性碰撞结果
     v_diff_sq = dem_velocity**2 - velocity_y**2
     F_single_min_high = np.sqrt(Fy_r_min**2 + np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_min**3 * v_diff_sq * radius_min)
     F_single_max_high = np.sqrt(Fy_r_max**2 + np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_max**3 * v_diff_sq * radius_max)
     E_Fmax_high = (1/3) * (radius_max**2 + radius_max*radius_min + radius_min**2) * np.sqrt(sigma_y**6 * np.pi**6 / (36 * modulus_eq**4) + 4/3 * np.pi**2 * sigma_y * dem_density * v_diff_sq)
     
     # 用mask选择结果，分别赋值
+    mask_low = dem_velocity <= velocity_y      # 低速冲击掩码，True表示速度小于等于临界速度
+    mask_high = ~mask_low                       # 高速冲击掩码，True表示速度大于临界速度
+    
     F_single_min = np.zeros_like(dem_velocity)
     F_single_min[mask_low] = F_single_min_low[mask_low]
     F_single_min[mask_high] = F_single_min_high[mask_high]
