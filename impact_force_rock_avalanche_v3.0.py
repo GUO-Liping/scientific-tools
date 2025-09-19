@@ -2,6 +2,7 @@ import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
+from scipy import stats
 import math
 
 # 设置中文字体
@@ -84,49 +85,115 @@ def compute_Hertz_contact_forces(radius_min, radius_max, modulus_eq, dem_density
 
 def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_density, dem_velocity, sigma_y):
     """计算Thornton弹性/理想塑性-接触力的期望。"""
-    velocity_y = np.sqrt(np.pi**4/40) * (sigma_y**5 / (dem_density * modulus_eq**4))**0.5  # np.sqrt(np.pi**4/40)=1.560521475613219791
-    Fy_r_max = sigma_y**3 * np.pi**3 * radius_max**2 / (6 * modulus_eq**2)
-    Fy_r_min = sigma_y**3 * np.pi**3 * radius_min**2 / (6 * modulus_eq**2)
 
     F_single_min = np.zeros_like(dem_velocity)
     F_single_max = np.zeros_like(dem_velocity)
     E_Fmax = np.zeros_like(dem_velocity)
 
     # 计算弹性碰撞结果
-    F_single_min_low = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_min**2
-    F_single_max_low = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6 * radius_max**2
-    E_Fmax_low = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
-    def integrand_unif_distribute(x):
-        return 1 / np.sqrt(1 - x**(5/2))
-    EFmax_result, EFmax_error = quad(integrand, 0, 1)
+    const_F_elastic = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
+    F_single_min_low = const_F_elastic * radius_min**2
+    F_single_max_low = const_F_elastic * radius_max**2
+    E_Fmax_elastic = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
+    '''
+    print('radius_max=', radius_max, len(radius_max))
+    print('radius_min=', radius_min, len(radius_min))
+    def integrate_r(r):
+        return const_F_elastic * r**2
+
+    def integrand_unif_distribute(radius_min, radius_max):
+
+
+        for i in range (len(radius_max)):
+            dist_unif = stats.norm(radius_min[i], radius_max[i]-radius_min[i])
+            unif_result, unif_error = quad(lambda r: integrate_r(r) * dist_unif.pdf(r), radius_min[i], radius_max[i])
+        return unif_result, unif_error
+    print('unif_result, unif_error=',integrand_unif_distribute(radius_min[-1], radius_max[-1]), 'E_Fmax_elastic=', E_Fmax_elastic)
+
     def integrand_expo_distribute(x):
         return 1 / np.sqrt(1 - x**(5/2))
     def integrand_norm_distribute(x):
         return 1 / np.sqrt(1 - x**(5/2))
+    '''
+    velocity_y = np.sqrt(np.pi**4/40) * (sigma_y**5 / (dem_density * modulus_eq**4))**0.5  # np.sqrt(np.pi**4/40)=1.560521475613219791
+    Fy_r_max = sigma_y**3 * np.pi**3 * radius_max**2 / (6 * modulus_eq**2)
+    Fy_r_min = sigma_y**3 * np.pi**3 * radius_min**2 / (6 * modulus_eq**2)
 
     # 计算塑性碰撞结果
     v_diff_sq = dem_velocity**2 - velocity_y**2
     F_single_min_high = np.sqrt(Fy_r_min**2 + np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_min**3 * v_diff_sq * radius_min)
     F_single_max_high = np.sqrt(Fy_r_max**2 + np.pi * sigma_y * dem_density * (4/3) * np.pi * radius_max**3 * v_diff_sq * radius_max)
-    E_Fmax_high = (1/3) * (radius_max**2 + radius_max*radius_min + radius_min**2) * np.sqrt(sigma_y**6 * np.pi**6 / (36 * modulus_eq**4) + 4/3 * np.pi**2 * sigma_y * dem_density * v_diff_sq)
+    E_Fmax_plastic = (1/3) * (radius_max**2 + radius_max*radius_min + radius_min**2) * np.sqrt(sigma_y**6 * np.pi**6 / (36 * modulus_eq**4) + 4/3 * np.pi**2 * sigma_y * dem_density * v_diff_sq)
     
     # 用mask选择结果，分别赋值
-    mask_low = dem_velocity <= velocity_y      # 低速冲击掩码，True表示速度小于等于临界速度
-    mask_high = ~mask_low                       # 高速冲击掩码，True表示速度大于临界速度
+    mask_elastic = dem_velocity <= velocity_y      # 低速冲击掩码，True表示速度小于等于临界速度
+    mask_plastic = ~mask_elastic                       # 高速冲击掩码，True表示速度大于临界速度
     
     F_single_min = np.zeros_like(dem_velocity)
-    F_single_min[mask_low] = F_single_min_low[mask_low]
-    F_single_min[mask_high] = F_single_min_high[mask_high]
+    F_single_min[mask_elastic] = F_single_min_low[mask_elastic]
+    F_single_min[mask_plastic] = F_single_min_high[mask_plastic]
     
     F_single_max = np.zeros_like(dem_velocity)
-    F_single_max[mask_low] = F_single_max_low[mask_low]
-    F_single_max[mask_high] = F_single_max_high[mask_high]
+    F_single_max[mask_elastic] = F_single_max_low[mask_elastic]
+    F_single_max[mask_plastic] = F_single_max_high[mask_plastic]
     
-    E_Fmax = np.zeros_like(dem_velocity)
-    E_Fmax[mask_low] = E_Fmax_low[mask_low]
-    E_Fmax[mask_high] = E_Fmax_high[mask_high]
+    E_Fmax[mask_elastic] = E_Fmax_elastic[mask_elastic]
+    E_Fmax[mask_plastic] = E_Fmax_plastic[mask_plastic]
 
     return velocity_y, F_single_min, F_single_max, E_Fmax
+
+
+def compute_Thornton_contact_force2(radius_min, radius_max, modulus_eq, dem_density, dem_velocity, sigma_y):
+    """计算Thornton弹性/理想塑性-接触力的期望。"""
+
+    F_single_min = np.zeros_like(dem_velocity)
+    F_single_max = np.zeros_like(dem_velocity)
+    E_Fmax_elastic = np.zeros_like(dem_velocity)
+
+    # 计算弹性碰撞结果
+    const_F_elastic = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
+    F_single_min_low = const_F_elastic * radius_min**2
+    F_single_max_low = const_F_elastic * radius_max**2
+    #E_Fmax_elastic = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
+    
+    def integrate_r(r, const_F):
+            return const_F * r**2
+
+    if distribute == 'uniform':
+
+        def integrand_unif_distribute(r_min, r_max):
+            """计算均匀分布下的接触力"""
+            dist_unif = stats.uniform(r_min, r_max-r_min)
+            # 执行数值积分，计算均匀分布下的期望接触力
+            unif_result, unif_error = quad(lambda r: integrate_r(r,const_F) * dist_unif.pdf(r), r_min, r_max)
+            return unif_result, unif_error
+        
+        # 计算所有粒径范围的期望接触力
+        for i in range(len(radius_min)):
+            E_Fmax[i] = integrand_unif_distribute(radius_min[i], radius_max[i], const_F_elastic[i])
+
+    elif distribute == 'normal':
+
+        def integrand_norm_distribute(r_min, r_max):
+            """计算正态分布下的接触力"""
+            dist_norm = stats.norm(r_min, (r_max-r_min)/4)
+            # 执行数值积分，计算均匀分布下的期望接触力
+            norm_result, norm_error = quad(lambda r: integrate_r(r,const_F) * dist_norm.pdf(r), r_min, r_max)
+            return norm_result, norm_error
+    
+    elif distribute == 'exponential':
+
+        def integrand_expo_distribute(r_min, r_max):
+            """计算正态分布下的接触力"""
+            dist_expo = stats.expon(scale=(r_max-r_min))
+            # 执行数值积分，计算均匀分布下的期望接触力
+            expo_result, expo_error = quad(lambda r: integrate_r(r,const_F) * dist_expo.pdf(r), r_min, r_max)
+            return expo_result, expo_error
+
+        # 计算所有粒径范围的期望接触力
+        for i in range(len(radius_min)):
+            E_Fmax[i] = integrand_unif_distribute(radius_min[i], radius_max[i], const_F_elastic[i])
+    return E_Fmax_elastic
 
 def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, impact_duration, E_Fmax):
     """根据三角形脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
@@ -307,7 +374,7 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    case_number = 16
+    case_number = 8
     DEM_Volumn = np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
     DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))
     print('DEM_Volumn:', DEM_Volumn)      
