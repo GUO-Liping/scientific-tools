@@ -114,7 +114,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
 
         def integrand_unif_distribute(r_min, r_max, const_F):
             """计算均匀分布下的接触力"""
-            dist_unif = stats.uniform(r_min, r_max-r_min)
+            dist_unif = stats.uniform(loc=r_min, scale=r_max-r_min)
             # 执行数值积分，计算均匀分布下的期望接触力
             unif_result, unif_error = quad(lambda r: integrate_r(r,const_F) * dist_unif.pdf(r), r_min, r_max)
             return unif_result
@@ -129,7 +129,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
 
         def integrand_norm_distribute(r_min, r_max, const_F):
             """计算正态分布下的接触力"""
-            dist_norm = stats.norm(r_min, (r_max-r_min)/4)
+            dist_norm = stats.norm(loc=(r_min/2+r_max/2), scale=(r_max-r_min)/4)
             # 执行数值积分，计算均匀分布下的期望接触力
             norm_result, norm_error = quad(lambda r: integrate_r(r,const_F) * dist_norm.pdf(r), r_min, r_max)
             return norm_result
@@ -143,7 +143,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
 
         def integrand_expo_distribute(r_min, r_max, const_F):
             """计算正态分布下的接触力"""
-            dist_expo = stats.expon(scale=(r_max-r_min))
+            dist_expo = stats.expon(loc=1.5*r_min, scale=(r_max-r_min)/4)
             # 执行数值积分，计算均匀分布下的期望接触力
             expo_result, expo_error = quad(lambda r: integrate_r(r,const_F) * dist_expo.pdf(r), r_min, r_max)
             return expo_result
@@ -394,7 +394,8 @@ if __name__ == '__main__':
 
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
     #print('[Thornton Elasto-Plastic Theory]: ')
-    v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, 'uniform')
+    # 'exponential','uniform','normal'
+    v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, 'exponential')
     #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
     # 碰撞过程时间离散性和总冲击力
