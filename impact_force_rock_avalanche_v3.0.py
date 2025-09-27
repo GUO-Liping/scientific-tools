@@ -156,7 +156,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             norm_result, norm_error = quad(lambda r: integrate_r(r,const_F) * dist_norm.pdf(r)/diff_cdf, r_min, r_max)
 
             x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, dist_unif.pdf(x_plot)/diff_cdf)
+            plt.plot(x_plot, dist_norm.pdf(x_plot)/diff_cdf)
             return norm_result
   
         # 计算所有粒径范围的期望接触力
@@ -501,7 +501,7 @@ if __name__ == '__main__':
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
     #print('[Thornton Elasto-Plastic Theory]: ')
     # 'exponential','uniform','normal','weibull_l','weibull_r'
-    v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, 'weibull_r')
+    v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, 'normal')
     #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
     # 碰撞过程时间离散性和总冲击力
@@ -513,6 +513,7 @@ if __name__ == '__main__':
     f"\n\tt_per_DEM = {np.round(t_per_DEM, 5)}"
     f"\n\tDEM_velocity = {DEM_velocity}"
     f"\n\ttotal_force = {np.round(0.001*total_force, 3)} kN"
+    f"\n\texpected_force = {np.round(0.001*E_Fmax, 3)} kN"
 )
     plt.show()
 
