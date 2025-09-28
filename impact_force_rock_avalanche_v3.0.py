@@ -466,7 +466,7 @@ if __name__ == '__main__':
     DEM_miu = 0.2 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
     c_radius = np.array([0.45,0.75,1.05])
-    r_radius = np.array([0.01,0.05,0.15])
+    r_radius = np.array([0.00,0.00,0.00])
     radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
 
@@ -515,7 +515,7 @@ if __name__ == '__main__':
 
     f"\n\tsingle_particle_min = {np.round(radius_min, 3)} m"
     f"\n\tsingle_particle_max = {np.round(radius_max, 3)} m"
-    
+
     f"\n\tsingle_force_min = {np.round(0.001*F_min, 1)} kN"
     f"\n\tsingle_force_max = {np.round(0.001*F_max, 1)} kN"
 
