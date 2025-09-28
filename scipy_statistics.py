@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import uniform, truncnorm, truncexpon, lognorm, weibull_min, truncweibull_min
 
+import matplotlib
 matplotlib.rcParams['font.sans-serif'] = ['SimHei']  # 设置中文字体
 matplotlib.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 

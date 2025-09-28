@@ -512,7 +512,11 @@ if __name__ == '__main__':
     f"\tNumber of 3D particles in a single period = {np.round(num_pieces)}"
     f"\n\tt_per_DEM = {np.round(t_per_DEM, 5)}"
     f"\n\tDEM_velocity = {DEM_velocity}"
-    f"\n\ttotal_force = {np.round(0.001*total_force, 3)} kN"
+    f"\n\tsingle_particle_min = {np.round(radius_min, 3)} m"
+    f"\n\tsingle_particle_max = {np.round(radius_max, 3)} m"
+    f"\n\tsingle_force_min = {np.round(0.001*F_min, 1)} kN"
+    f"\n\tsingle_force_max = {np.round(0.001*F_max, 1)} kN"
+    f"\n\ttotal_force = {np.round(0.001*total_force, 1)} kN"
 )
     plt.show()
 
