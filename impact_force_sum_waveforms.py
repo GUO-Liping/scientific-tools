@@ -73,18 +73,30 @@ def plot_waveforms(waveforms, total_wave, time_values, wave_type):
 # ======================== 主程序 ========================
 if __name__ == "__main__":
     wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian']
-    num_waves = 6
-    wave_duration = 0.0005  # 每个波的持续时间
-    delta_t = wave_duration/num_waves       # 相邻波形间隔
+    t_contact = 0.0005  # 每个波的持续时间
+    delta_t_DEMs = 0.0001       # 相邻波形间隔
     amplitude = 1.0
+    num_waves = np.maximum(np.ceil(t_contact / delta_t_DEMs), 1).astype(int)
+
 
     for wave_type in wave_types:
         waveforms, total_wave, time_values = generate_wave_sequence(
             wave_type=wave_type,
             num_waves=num_waves,
-            wave_duration=wave_duration,
-            delta_t=delta_t,
+            wave_duration=t_contact,
+            delta_t=delta_t_DEMs,
             amplitude=amplitude
         )
         plot_waveforms(waveforms, total_wave, time_values, wave_type)
+
+    wave_type = 'sine'
+    if wave_type == 'sine':
+        max_coefficient = np.max(generate_wave_sequence(
+            wave_type=wave_type,
+            num_waves=num_waves,
+            wave_duration=t_contact,
+            delta_t=delta_t_DEMs,
+            amplitude=amplitude
+        )[1])
+    print('max_coefficient=', max_coefficient)
         

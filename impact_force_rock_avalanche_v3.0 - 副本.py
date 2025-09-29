@@ -449,6 +449,79 @@ def compute_total_impact_force_sine_old(DEM_flow_rate, Pier_shape, ratio_solid, 
 
     return num_waves, delta_t_DEMs, total_force
 
+
+def compute_gamma_space(Pier_shape):
+        # 根据桥墩形状设置 gamma_space
+    if Pier_shape == 'round':
+        gamma_space = np.pi / 4
+    elif Pier_shape == 'square':
+        gamma_space = 1
+    else:    
+        raise ValueError('Shape Of Section Not Found!')
+    return gamma_space
+
+def generate_waveform(wave_type, num_points=5000, amplitude=1.0):
+    """生成基础单峰波形"""
+    x = np.linspace(0, 1, num_points)
+
+    if wave_type == 'sine':
+        return amplitude * np.sin(np.pi * x)
+    
+    elif wave_type == 'triangle':
+        half = round(num_points / 2)
+        rise = np.linspace(0, amplitude, half)
+        fall = np.linspace(amplitude, 0, half)
+        return np.concatenate((rise, fall[1:],np.array([0])),axis=0)
+    
+    elif wave_type == 'square':
+        return np.full(num_points, amplitude)
+    
+    elif wave_type == 'sawtooth':
+        return amplitude * x
+
+    elif wave_type == 'gaussian':
+        return amplitude * np.exp(-20 * (x - 0.5) ** 2)
+    
+    else:
+        raise ValueError(f"Unsupported wave type: {wave_type}")
+
+def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=5000):
+    """生成波形序列并求叠加"""
+    num_waves = np.maximum(np.ceil(t_contact / delta_t_DEMs), 1).astype(int)
+    time_step = t_contact / num_points
+    max_total_waves = np.zeros_like(t_contact)
+    time_values = []
+
+    print('wave_type,t_contact,delta_t_DEMs=',num_waves,time_step,max_total_waves)
+
+    for i in range(len(t_contact)):
+        if num_waves[i] == 1:
+            max_total_waves[i] = 1
+            continue
+        else:
+            shift_points = np.maximum(np.round(delta_t_DEMs[i] / time_step[i]), 1).astype(int)
+            total_points = (num_waves[i] - 1) * shift_points + num_points
+            time_value = np.arange(total_points) * time_step[i]
+            time_values.append(time_value) 
+
+            base_wave = generate_waveform(wave_type, num_points, amplitude)
+            total_wave = np.zeros(total_points)
+            waveforms = []
+            for j in range(num_waves[i]):
+                wave = np.zeros(total_points)
+                start = j * shift_points
+                end = min(start + num_points, total_points)
+                length = end - start
+                wave[start:end] = base_wave[:length]
+                waveforms.append(wave)
+                total_wave += wave
+
+            max_total_waves[i] = np.max(total_wave)
+            continue
+        
+    return max_total_waves
+
+
 if __name__ == '__main__':
     # 参数定义
 
@@ -477,6 +550,8 @@ if __name__ == '__main__':
 
     ratio_solid = np.pi/6.0 * np.ones(case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
+    wave_type = 'sine'
+
 
     # Pier_shape = 'square'
     Pier_shape = 'round'
@@ -513,6 +588,14 @@ if __name__ == '__main__':
     #num_waves, delta_t_DEMs, total_force = compute_total_impact_force_triangle( DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, t_contact_elastoplastic, E_Fmax)
     num_waves, delta_t_DEMs, total_force = compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, t_contact_elastoplastic, E_Fmax)
     
+    gamma_space = compute_gamma_space(Pier_shape)
+    gamma_time  = compute_gamma_time(wave_type,t_contact_elastoplastic,delta_t_DEMs)
+    angle_impact = np.sin(np.radians(impact_angle_deg))
+    print('gamma_time * gamma_space * angle_impact * E_Fmax=',gamma_time, gamma_space, angle_impact, E_Fmax)
+
+    total_force2222 = gamma_time * gamma_space * angle_impact * E_Fmax
+
+    
     print(
     f"\tNumber of 3D particles in a single period = {np.round(num_waves)}"
     f"\n\tdelta_t_DEMs = {np.round(delta_t_DEMs, 5)}"
@@ -527,6 +610,7 @@ if __name__ == '__main__':
 
     f"\n\texpected_force = {np.round(0.001*E_Fmax, 3)} kN"
     f"\n\ttotal_force = {np.round(0.001*total_force, 1)} kN"
+    f"\n\total_force2222 = {np.round(0.001*total_force2222, 1)} kN"
 
 )
     plt.show()
