@@ -67,7 +67,7 @@ def compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radiu
 
 def compute_effective_flow_rate(pier_width, DEM_depth, radius_max, DEM_velocity):
     """计算桥墩有效宽度，根据截面形状调整。"""
-    pier_width_effect = pier_width + 4 * radius_max
+    pier_width_effect = pier_width + 2 * radius_max
     DEM_depth_effect = DEM_depth
     effective_flow_rate = pier_width_effect * DEM_depth_effect * DEM_velocity
     
@@ -305,6 +305,10 @@ def generate_waveform(wave_type, num_points=5000, amplitude=1.0):
     
     elif wave_type == 'sawtooth':
         return amplitude * x
+    
+    elif wave_type == 'exponential' or 'shock':
+        b = -np.log(0.02)/1.0
+        return amplitude * np.exp(-b*x)
 
     elif wave_type == 'gaussian':
         return amplitude * np.exp(-20 * (x - 0.5) ** 2)
@@ -317,8 +321,6 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
     num_waves = np.maximum(np.ceil(t_contact / delta_t_DEMs), 1).astype(int)
     time_step = t_contact / num_points
     max_total_waves = np.zeros_like(t_contact)
-
-    print('wave_type,t_contact,delta_t_DEMs=',num_waves,time_step,max_total_waves)
 
     for i in range(len(t_contact)):
         if num_waves[i] == 1:
@@ -344,12 +346,12 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
 
         max_total_waves[i] = np.max(total_wave)
         
-    # 绘制前几条单个波形
-    for k in range(len(waveforms)):
-        plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
-    
-    # 绘制叠加波形
-    plt.plot(time_values, total_wave, 'r-', linewidth=3.0, label='Sum')
+        # 绘制前几条单个波形
+        for k in range(len(waveforms)):
+            plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
+        # 绘制叠加波形
+        plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
+    plt.legend()
     plt.show()
         
     return max_total_waves
@@ -359,8 +361,8 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    case_number = 8
-    DEM_Volumn = np.linspace(1000, 8000, case_number)      # 碎屑流方量：m^3
+    case_number = 9
+    DEM_Volumn = np.linspace(2000, 2000, case_number)      # 碎屑流方量：m^3
     DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))
     print('DEM_Volumn:', DEM_Volumn)      
     print('DEM_depth:', DEM_depth)      
@@ -378,12 +380,12 @@ if __name__ == '__main__':
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.9*np.ones(case_number)
+    radius_min = 0.3*np.ones(case_number)
     radius_max = 1.2*np.ones(case_number)
 
-    ratio_solid = np.pi/6.0 * np.ones(case_number) # 固相体积分数np.pi/6.0
+    ratio_solid = np.linspace(0.3, 0.7, case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
-    wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian'
+    wave_type = 'sine'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock'
     dist_type = 'normal'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
 
@@ -398,6 +400,8 @@ if __name__ == '__main__':
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     print('radius_min, radius_max=', radius_min, radius_max)
     DEM_flow_rate = compute_effective_flow_rate(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
+    print('ratio_solid=', ratio_solid)
+    print('Q_DEM_flow=', DEM_flow_rate)
     sigma_y = np.minimum(DEM_strength, Pier_strength)
 
     # 计算冲击时间
@@ -420,7 +424,7 @@ if __name__ == '__main__':
     flow_time = np.ones_like(E_Fmax)  # s
     volume_total = DEM_flow_rate * flow_time
     radius_avg = (radius_max + radius_min)/2
-    number_of_DEM = np.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    number_of_DEM = np.round(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
     delta_t_DEMs = flow_time / number_of_DEM
     num_waves = np.maximum(np.ceil(t_contact_elastoplastic / delta_t_DEMs), 1).astype(int)
 
@@ -429,7 +433,6 @@ if __name__ == '__main__':
     gamma_space = compute_gamma_space(Pier_shape)
     gamma_time  = compute_gamma_time(wave_type,t_contact_elastoplastic,delta_t_DEMs)
     angle_impact = np.sin(np.radians(impact_angle_deg))
-    print('gamma_time * gamma_space * angle_impact * E_Fmax=',gamma_time, gamma_space, angle_impact, E_Fmax)
 
     total_force = gamma_time * gamma_space * angle_impact * E_Fmax
 
