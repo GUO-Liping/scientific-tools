@@ -125,7 +125,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             unif_result, unif_error = quad(lambda r: integrate_r(r,const_F) * dist_unif.pdf(r), r_min, r_max)
 
             x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, dist_unif.pdf(x_plot))
+            plt.plot(x_plot, dist_unif.pdf(x_plot), '-', linewidth=3.0)
             return unif_result
 
         # 计算所有粒径范围的期望接触力
@@ -133,7 +133,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             # 展开数据用于拟合
             field_x = np.linspace(radius_min[i], radius_max[i], 8)
             field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.plot(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 'o')
+            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
 
             E_Fmax_elastic[i] = integrand_unif_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
             E_Fmax_plastic[i] = integrand_unif_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
@@ -156,7 +156,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             norm_result, norm_error = quad(lambda r: integrate_r(r,const_F) * dist_norm.pdf(r)/diff_cdf, r_min, r_max)
 
             x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, dist_norm.pdf(x_plot)/diff_cdf)
+            plt.plot(x_plot, dist_norm.pdf(x_plot)/diff_cdf, '-', linewidth=3.0)
             return norm_result
   
         # 计算所有粒径范围的期望接触力
@@ -164,7 +164,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             # 展开数据用于拟合
             field_x = np.linspace(radius_min[i], radius_max[i], 8)
             field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.plot(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 'o')
+            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
 
             E_Fmax_elastic[i] = integrand_norm_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
             E_Fmax_plastic[i] = integrand_norm_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
@@ -185,7 +185,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             weibull_r_result, weibull_r_error = quad(lambda r: integrate_r(r,const_F) * weibull_r_dist.pdf(r)/diff_cdf, r_min, r_max)
 
             x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, weibull_r_dist.pdf(x_plot)/diff_cdf)
+            plt.plot(x_plot, weibull_r_dist.pdf(x_plot)/diff_cdf, '-', linewidth=3.0)
 
             return weibull_r_result
 
@@ -194,7 +194,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             # 展开数据用于拟合
             field_x = np.linspace(radius_min[i], radius_max[i], 8)
             field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.plot(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 'o')
+            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
 
             E_Fmax_elastic[i] = integrand_weibull_r_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
             E_Fmax_plastic[i] = integrand_weibull_r_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
@@ -215,7 +215,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             weibull_l_result, weibull_l_error = quad(lambda r: integrate_r(r,const_F) * weibull_l_dist.pdf(r)/diff_cdf, r_min, r_max)
             
             x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, weibull_l_dist.pdf(x_plot)/diff_cdf)
+            plt.plot(x_plot, weibull_l_dist.pdf(x_plot)/diff_cdf, '-', linewidth=3.0)
 
             return weibull_l_result
 
@@ -224,7 +224,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             # 展开数据用于拟合
             field_x = np.linspace(radius_min[i], radius_max[i], 8)
             field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.plot(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 'o')
+            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
 
             E_Fmax_elastic[i] = integrand_weibull_l_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
             E_Fmax_plastic[i] = integrand_weibull_l_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
@@ -243,7 +243,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             expo_result, expo_error = quad(lambda r: integrate_r(r,const_F) * dist_expo.pdf(r)/diff_cdf, r_min, r_max)
             
             x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, dist_expo.pdf(x_plot)/diff_cdf)
+            plt.plot(x_plot, dist_expo.pdf(x_plot)/diff_cdf, '-', linewidth=3.0)
 
             return expo_result
 
@@ -252,7 +252,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             # 展开数据用于拟合
             field_x = np.linspace(radius_min[i], radius_max[i], 8)
             field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.plot(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 'o')
+            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
 
             E_Fmax_elastic[i] = integrand_expo_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
             E_Fmax_plastic[i] = integrand_expo_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
@@ -272,182 +272,9 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     E_Fmax[mask_elastic] = E_Fmax_elastic[mask_elastic]
     E_Fmax[mask_plastic] = E_Fmax_plastic[mask_plastic]
 
-    return velocity_y, F_single_min, F_single_max, E_Fmax
-
-def compute_total_impact_force_triangle(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, t_contact, E_Fmax):
-    """根据三角形脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
-    flow_time = 1  # s
-    volume_total = DEM_flow_rate * flow_time
-    #radius_avg = np.sqrt(1/3 * (radius_max**2 + radius_max*radius_min + radius_min**2))
-    radius_avg = (radius_max + radius_min)/2
-    number_of_DEM = math.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    delta_t_DEMs = flow_time / number_of_DEM
-    num_waves = max(math.ceil(t_contact/delta_t_DEMs),1)
-
-    array_size = 100
-
-    length = array_size // 2
-    if array_size % 2 == 0:
-        front = np.linspace(0, 1, length)
-        end = np.linspace(1, 0, length)
-        pulse_array = np.concatenate([front, end[1:], np.array([0])])
-    else:
-        front = np.linspace(0, 1, length + 1)
-        end = np.linspace(1, 0, length + 1)
-        pulse_array = np.concatenate([front, end[1:]])  # 例如 array_size = 101
-    pulse_array = pulse_array[:array_size]  # 最终强制长度一致（保险）
-
-    multi_pulse_arrays = []
-    length_add = round(length * 2*delta_t_DEMs/t_contact)
-    # 对基础数组进行平移，生成其余数组
-    for i in range(num_waves):
-        shifted_array = np.concatenate([np.zeros(i*length_add), pulse_array, np.zeros((num_waves - i-1)*length_add)])
-        multi_pulse_arrays.append(shifted_array)
-    
-    time_pulse = np.linspace(0, (len(shifted_array) - 1) * delta_t_DEMs, len(shifted_array))
-
-    # 将所有数组进行求和
-    sum_array = np.sum(multi_pulse_arrays, axis=0)
-
-    # 绘制所有数组和它们的和
-    plt.figure(figsize=(10, 6))
-    for i, array in enumerate(multi_pulse_arrays):
-        plt.plot(time_pulse, array, label=f'Array {i+1}')
-
-    plt.plot(time_pulse,sum_array, label='Sum of Arrays', color='red', linewidth=2)
-    plt.legend()
-    plt.title('三角脉冲波形之和 vs 时间')
-    plt.xlabel('时间(s)')
-    plt.ylabel('脉冲强度')
-    plt.grid(True)
     plt.show()
 
-    angle_impact = np.sin(np.radians(impact_angle_deg))
-
-    if Pier_shape == 'round':
-        gamma_space = np.pi/4
-    elif Pier_shape =='square':
-        gamma_space = 1
-    else:    
-        raise ValueError('Shape Of Section Not Found!')
-    
-    if delta_t_DEMs >= (t_contact/2):
-        total_force = gamma_space * angle_impact * E_Fmax
-    else:
-        total_force = gamma_space * angle_impact * E_Fmax * np.max(sum_array)
-    
-    return num_waves, delta_t_DEMs, total_force
-
-def compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, t_contact, E_Fmax):
-    """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
-    try:
-        # 确保输入参数为numpy数组
-        DEM_flow_rate = np.array(DEM_flow_rate, dtype=float)
-        t_contact = np.array(t_contact, dtype=float)
-        E_Fmax = np.array(E_Fmax, dtype=float)
-        
-        flow_time = np.ones_like(E_Fmax)  # s
-        volume_total = DEM_flow_rate * flow_time
-        radius_avg = (radius_max + radius_min) / 2
-        number_of_DEM = np.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3)))
-        delta_t_DEMs = flow_time / number_of_DEM
-        angle_impact = np.sin(np.radians(impact_angle_deg))
-
-        # 计算 num_waves 并确保其为整数
-        num_waves = np.maximum(np.ceil(t_contact / delta_t_DEMs), 1).astype(int)
-        num_points = 1000
-
-        coeff_sin_total = np.zeros_like(E_Fmax)
-
-        # 向量化计算
-        for k in range(len(E_Fmax)):
-            t_pieces = np.linspace(0, t_contact[k], num_waves[k] * num_points).reshape(num_waves[k], num_points)
-            delta_t_DEMs_k = delta_t_DEMs[k]
-            sin_total = np.zeros((num_waves[k], num_points))
-
-            for i in range(num_waves[k]):
-                t_piece = t_pieces[i]
-                sin_array = np.sin((np.pi / t_contact[k]) * (t_piece - delta_t_DEMs_k * np.arange(i + 1).reshape(-1, 1)))
-                sin_array[sin_array < 0] = 0
-                sin_total[i] = np.sum(sin_array, axis=0)
-                #print('i=', i, 'k=', k)
-
-            coeff_sin_total[k] = np.max(sin_total)
-
-            # 移除绘图代码，以减少不必要的计算和提高效率
-            # plt.plot(t_pieces[i], sin_total[i], '-*')
-            # plt.xlabel('Time (s)')
-            # plt.ylabel('Function value')
-            # plt.title('Function value over time')
-            # plt.show()
-
-        # 根据桥墩形状设置 gamma_space
-        if Pier_shape == 'round':
-            gamma_space = np.pi / 4
-        elif Pier_shape == 'square':
-            gamma_space = 1
-        else:    
-            raise ValueError('Shape Of Section Not Found!')
-
-        # 计算总冲击力
-        total_force = gamma_space * angle_impact * coeff_sin_total * E_Fmax
-        return num_waves, delta_t_DEMs, total_force
-
-    except Exception as e:
-        print(f"Error in compute_total_impact_force_sine: {e}")
-        return None, None, None
-
-
-def compute_total_impact_force_sine_old(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, t_contact, E_Fmax):
-    """根据正弦脉冲计算碰撞过程中总冲击力和相关时间离散参数。"""
-    flow_time = np.ones_like(E_Fmax)  # s
-    volume_total = DEM_flow_rate * flow_time
-    radius_avg = (radius_max + radius_min)/2
-    number_of_DEM = np.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    delta_t_DEMs = flow_time / number_of_DEM
-    angle_impact = np.sin(np.radians(impact_angle_deg))
-
-    num_waves = np.maximum(np.ceil(t_contact/delta_t_DEMs),1).astype(int)
-    num_points = 1000
-
-    coeff_sin_total = np.zeros_like(E_Fmax)
-
-    for k in range(len(E_Fmax)):
-        t_pieces  = np.zeros((num_waves[k],num_points)) 
-        sin_total = np.zeros((num_waves[k],num_points))
-
-        for i in range(num_waves[k]):
-            sin_array = np.zeros(num_points)
-            t_pieces[i] = np.linspace(i*delta_t_DEMs[k], (i+1)*delta_t_DEMs[k], num_points)
-    
-            for j in range(i+1):
-                sin_array = np.sin((np.pi/t_contact[k])*(t_pieces[i]-j*delta_t_DEMs[k]))
-    
-                sin_array[sin_array < 0] = 0
-    
-                sin_total[i] = sin_total[i] + sin_array
-                #print(f"i={i}, j={j},k={k}")
-                
-            plt.plot(t_pieces[i], sin_total[i],'-*')
-            plt.xlabel('Time (s)')
-            plt.ylabel('Function value')
-            plt.title('Function value over time')
-        #plt.show()
-        coeff_sin_total[k] = np.max(sin_total)
-        #plt.plot(np.array([0,t_contact]),np.array([np.max(sin_total), np.max(sin_total)]),'-.*r')
-        #plt.plot(np.array([t_contact,t_contact]),np.array([0, np.max(sin_total)]),'-.*r')
-        #plt.show()
-
-    if Pier_shape == 'round':
-        gamma_space = np.pi/4
-    elif Pier_shape =='square':
-        gamma_space = 1
-    else:    
-        raise ValueError('Shape Of Section Not Found!')
-
-    total_force = gamma_space * angle_impact * coeff_sin_total * E_Fmax
-
-    return num_waves, delta_t_DEMs, total_force
+    return velocity_y, F_single_min, F_single_max, E_Fmax
 
 
 def compute_gamma_space(Pier_shape):
@@ -490,7 +317,6 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
     num_waves = np.maximum(np.ceil(t_contact / delta_t_DEMs), 1).astype(int)
     time_step = t_contact / num_points
     max_total_waves = np.zeros_like(t_contact)
-    time_values = []
 
     print('wave_type,t_contact,delta_t_DEMs=',num_waves,time_step,max_total_waves)
 
@@ -498,26 +324,33 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
         if num_waves[i] == 1:
             max_total_waves[i] = 1
             continue
-        else:
-            shift_points = np.maximum(np.round(delta_t_DEMs[i] / time_step[i]), 1).astype(int)
-            total_points = (num_waves[i] - 1) * shift_points + num_points
-            time_value = np.arange(total_points) * time_step[i]
-            time_values.append(time_value) 
+        
+        shift_points = np.maximum(np.round(delta_t_DEMs[i] / time_step[i]), 1).astype(int)
+        total_points = (num_waves[i] - 1) * shift_points + num_points
+        time_values = np.arange(total_points) * time_step[i]
 
-            base_wave = generate_waveform(wave_type, num_points, amplitude)
-            total_wave = np.zeros(total_points)
-            waveforms = []
-            for j in range(num_waves[i]):
-                wave = np.zeros(total_points)
-                start = j * shift_points
-                end = min(start + num_points, total_points)
-                length = end - start
-                wave[start:end] = base_wave[:length]
-                waveforms.append(wave)
-                total_wave += wave
+        base_wave = generate_waveform(wave_type, num_points, amplitude)
+        total_wave = np.zeros(total_points)
+        waveforms = []
+        # 另一种方法为卷积实现，但当shift_points很大时，计算效率不如循环，可能造成资源浪费
+        for j in range(num_waves[i]):
+            wave = np.zeros(total_points)
+            start = j * shift_points
+            end = min(start + num_points, total_points)
+            length = end - start
+            wave[start:end] = base_wave[:length]
+            waveforms.append(wave)
+            total_wave += wave
 
-            max_total_waves[i] = np.max(total_wave)
-            continue
+        max_total_waves[i] = np.max(total_wave)
+        
+    # 绘制前几条单个波形
+    for k in range(len(waveforms)):
+        plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
+    
+    # 绘制叠加波形
+    plt.plot(time_values, total_wave, 'r-', linewidth=3.0, label='Sum')
+    plt.show()
         
     return max_total_waves
 
@@ -550,7 +383,8 @@ if __name__ == '__main__':
 
     ratio_solid = np.pi/6.0 * np.ones(case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
-    wave_type = 'sine'
+    wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian'
+    dist_type = 'normal'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
 
     # Pier_shape = 'square'
@@ -580,20 +414,24 @@ if __name__ == '__main__':
 
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
     #print('[Thornton Elasto-Plastic Theory]: ')
-    # 'exponential','uniform','normal','weibull_l','weibull_r'
-    v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, 'weibull_r')
+    v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, dist_type)
     #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
+    flow_time = np.ones_like(E_Fmax)  # s
+    volume_total = DEM_flow_rate * flow_time
+    radius_avg = (radius_max + radius_min)/2
+    number_of_DEM = np.ceil(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    delta_t_DEMs = flow_time / number_of_DEM
+    num_waves = np.maximum(np.ceil(t_contact_elastoplastic / delta_t_DEMs), 1).astype(int)
+
     # 碰撞过程时间离散性和总冲击力
-    #num_waves, delta_t_DEMs, total_force = compute_total_impact_force_triangle( DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, t_contact_elastoplastic, E_Fmax)
-    num_waves, delta_t_DEMs, total_force = compute_total_impact_force_sine(DEM_flow_rate, Pier_shape, ratio_solid, radius_min, radius_max, impact_angle_deg, t_contact_elastoplastic, E_Fmax)
-    
+
     gamma_space = compute_gamma_space(Pier_shape)
     gamma_time  = compute_gamma_time(wave_type,t_contact_elastoplastic,delta_t_DEMs)
     angle_impact = np.sin(np.radians(impact_angle_deg))
     print('gamma_time * gamma_space * angle_impact * E_Fmax=',gamma_time, gamma_space, angle_impact, E_Fmax)
 
-    total_force2222 = gamma_time * gamma_space * angle_impact * E_Fmax
+    total_force = gamma_time * gamma_space * angle_impact * E_Fmax
 
     
     print(
@@ -610,7 +448,6 @@ if __name__ == '__main__':
 
     f"\n\texpected_force = {np.round(0.001*E_Fmax, 3)} kN"
     f"\n\ttotal_force = {np.round(0.001*total_force, 1)} kN"
-    f"\n\total_force2222 = {np.round(0.001*total_force2222, 1)} kN"
 
 )
     plt.show()
