@@ -120,7 +120,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             # 1. 截断均匀分布 (uniform 在 [r_min, r_max] 上天然归一化)
             data_expanded = np.repeat(field_x, field_n)
             dist_unif = stats.uniform(loc=r_min, scale=r_max - r_min)
-            print(f"截断均匀分布 Uniform:\t loc={r_min:.4f}, scale={r_max - r_min:.4f}")
+            #print(f"截断均匀分布 Uniform:\t loc={r_min:.4f}, scale={r_max - r_min:.4f}")
             # 执行数值积分，计算均匀分布下的期望接触力
             unif_result, unif_error = quad(lambda r: integrate_r(r,const_F) * dist_unif.pdf(r), r_min, r_max)
 
@@ -151,7 +151,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             a, b = (r_min - mu) / sigma, (r_max - mu) / sigma
             dist_norm = stats.truncnorm(a, b, loc=mu, scale=sigma)
             diff_cdf = (dist_norm.cdf(r_max) - dist_norm.cdf(r_min))
-            print(f"截断正态分布 TruncNorm:\t mu={mu:.4f}, sigma={sigma:.4f}, a={a:.4f}, b={b:.4f}")
+            #print(f"截断正态分布 TruncNorm:\t mu={mu:.4f}, sigma={sigma:.4f}, a={a:.4f}, b={b:.4f}")
             # 执行数值积分，计算均匀分布下的期望接触力
             norm_result, norm_error = quad(lambda r: integrate_r(r,const_F) * dist_norm.pdf(r)/diff_cdf, r_min, r_max)
 
@@ -180,7 +180,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             a_r, b_r = (r_min - loc_wei_r) / scale_wei_r, (r_max - loc_wei_r) / scale_wei_r
             weibull_r_dist = stats.truncweibull_min(c_wei_r, a_r, b_r, loc=loc_wei_r, scale=scale_wei_r)
             diff_cdf = (weibull_r_dist.cdf(r_max) - weibull_r_dist.cdf(r_min))
-            print(f"截断Weibull右偏 TruncWeibullMin_r:\t c={c_wei_r:.4f}, loc={loc_wei_r:.4f}, scale={scale_wei_r:.4f}, a={a_r:.4f}, b={b_r:.4f}")
+            #print(f"截断Weibull右偏 TruncWeibullMin_r:\t c={c_wei_r:.4f}, loc={loc_wei_r:.4f}, scale={scale_wei_r:.4f}, a={a_r:.4f}, b={b_r:.4f}")
             # 执行数值积分，计算均匀分布下的期望接触力
             weibull_r_result, weibull_r_error = quad(lambda r: integrate_r(r,const_F) * weibull_r_dist.pdf(r)/diff_cdf, r_min, r_max)
 
@@ -210,7 +210,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             a_l, b_l = (r_min - loc_wei_l) / scale_wei_l, (r_max - loc_wei_l) / scale_wei_l
             weibull_l_dist = stats.truncweibull_min(c_wei_l, a_l, b_l, loc=loc_wei_l, scale=scale_wei_l)
             diff_cdf = (weibull_l_dist.cdf(r_max) - weibull_l_dist.cdf(r_min))
-            print(f"截断Weibull左偏 TruncWeibullMin_l:\t c={c_wei_l:.4f}, loc={loc_wei_l:.4f}, scale={scale_wei_l:.4f}, a={a_l:.4f}, b={b_l:.4f}")
+            #print(f"截断Weibull左偏 TruncWeibullMin_l:\t c={c_wei_l:.4f}, loc={loc_wei_l:.4f}, scale={scale_wei_l:.4f}, a={a_l:.4f}, b={b_l:.4f}")
             # 执行数值积分，计算均匀分布下的期望接触力
             weibull_l_result, weibull_l_error = quad(lambda r: integrate_r(r,const_F) * weibull_l_dist.pdf(r)/diff_cdf, r_min, r_max)
             
@@ -239,6 +239,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             b_fit, loc_fit, scale_fit = stats.truncexpon.fit(data_expanded)
             dist_expo = stats.truncexpon(b_fit, loc=loc_fit, scale=scale_fit)
             diff_cdf = (dist_expo.cdf(r_max) - dist_expo.cdf(r_min))
+            #print(f"截断指数分布:\t b_fit={b_fit:.4f}, loc_fit={loc_fit:.4f}, scale_fit={scale_fit:.4f})
             # 执行数值积分，计算均匀分布下的期望接触力
             expo_result, expo_error = quad(lambda r: integrate_r(r,const_F) * dist_expo.pdf(r)/diff_cdf, r_min, r_max)
             
@@ -287,7 +288,7 @@ def compute_gamma_space(Pier_shape):
         raise ValueError('Shape Of Section Not Found!')
     return gamma_space
 
-def generate_waveform(wave_type, num_points=5000, amplitude=1.0):
+def generate_waveform(wave_type, num_points=2400, amplitude=1.0):
     """生成基础单峰波形"""
     x = np.linspace(0, 1, num_points)
 
@@ -305,8 +306,16 @@ def generate_waveform(wave_type, num_points=5000, amplitude=1.0):
     
     elif wave_type == 'sawtooth':
         return amplitude * x
+
+    elif wave_type == 'trapezoidal':
+        num_rise = round(num_points / 4)
+        rise = np.linspace(0, amplitude, num_rise)
+        const = np.full(num_points - 2*num_rise, amplitude)
+        fall = np.linspace(amplitude, 0, num_rise)
+        return np.concatenate((rise, const, fall),axis=0)
+
     
-    elif wave_type == 'exponential' or 'shock':
+    elif wave_type in ('exponential', 'shock'):
         b = -np.log(0.02)/1.0
         return amplitude * np.exp(-b*x)
 
@@ -346,11 +355,11 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
 
         max_total_waves[i] = np.max(total_wave)
         
-        # 绘制前几条单个波形
-        for k in range(len(waveforms)):
-            plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
-        # 绘制叠加波形
-        plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
+    # 绘制前几条单个波形
+    for k in range(len(waveforms)):
+        plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
+    # 绘制叠加波形
+    plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
     plt.legend()
     plt.show()
         
@@ -361,16 +370,14 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    case_number = 9
-    DEM_Volumn = np.linspace(2000, 2000, case_number)      # 碎屑流方量：m^3
+    case_number = 5
+    DEM_Volumn = np.linspace(1000, 10000, case_number)      # 碎屑流方量：m^3
     DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))
-    print('DEM_Volumn:', DEM_Volumn)      
-    print('DEM_depth:', DEM_depth)      
 
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = (12.8 + (9.8-12.8)/(16000-1000) * (DEM_Volumn-1000))# 11.8 * np.ones(case_number)      # m/s
+    DEM_velocity = 11.8 * np.ones(case_number) # 11.8 * np.ones(case_number)      # m/s
     DEM_density = 2550 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 50e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.2 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
@@ -383,10 +390,10 @@ if __name__ == '__main__':
     radius_min = 0.3*np.ones(case_number)
     radius_max = 1.2*np.ones(case_number)
 
-    ratio_solid = np.linspace(0.3, 0.7, case_number) # 固相体积分数np.pi/6.0
+    ratio_solid = 0.60 * np.ones(case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
-    wave_type = 'sine'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock'
-    dist_type = 'normal'  # 'uniform','normal','exponential','weibull_l','weibull_r'
+    wave_type = 'trapezoidal'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock'
+    dist_type = 'weibull_r'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
 
     # Pier_shape = 'square'
@@ -398,10 +405,7 @@ if __name__ == '__main__':
     
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
-    print('radius_min, radius_max=', radius_min, radius_max)
     DEM_flow_rate = compute_effective_flow_rate(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
-    print('ratio_solid=', ratio_solid)
-    print('Q_DEM_flow=', DEM_flow_rate)
     sigma_y = np.minimum(DEM_strength, Pier_strength)
 
     # 计算冲击时间
@@ -436,23 +440,21 @@ if __name__ == '__main__':
 
     total_force = gamma_time * gamma_space * angle_impact * E_Fmax
 
-    
-    print(
-    f"\tNumber of 3D particles in a single period = {np.round(num_waves)}"
-    f"\n\tdelta_t_DEMs = {np.round(delta_t_DEMs, 5)}"
-    f"\n\tt_contact_elastoplastic = {np.round(t_contact_elastoplastic, 5)}"
-    f"\n\tDEM_velocity = {DEM_velocity}"
+    print('DEM_Volumn    =', np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
+    print('DEM_depth     =', np.array2string(DEM_depth,                    separator=', ', precision=1), 'm')      
+    print('ratio_solid   =', np.array2string(ratio_solid,                  separator=', ', precision=2), ' ')      
+    print('DEM_flow_rate =', np.array2string(DEM_flow_rate,                separator=', ', precision=1), 'm^3/s')      
+    print('num_waves     =', np.array2string(num_waves,                    separator=', ', precision=1), ' ')      
+    print('delta_t_DEMs  =', np.array2string(delta_t_DEMs*1000,            separator=', ', precision=2), 'ms')      
+    print('t_contact     =', np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=2), 'ms')      
+    print('DEM_velocity  =', np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s')      
+    print('radius_min    =', np.array2string(radius_min,                   separator=', ', precision=1), 'm')      
+    print('radius_max    =', np.array2string(radius_max,                   separator=', ', precision=1), 'm')      
+    print('F_min         =', np.array2string(F_min/1000,                   separator=', ', precision=0), 'kN')      
+    print('F_max         =', np.array2string(F_max/1000,                   separator=', ', precision=0), 'kN')      
+    print('E_Fmax        =', np.array2string(E_Fmax/1000,                  separator=', ', precision=0), 'kN')      
+    print('total_force   =', np.array2string(total_force/1000,             separator=', ', precision=0), 'kN')
 
-    f"\n\tsingle_particle_min = {np.round(radius_min, 3)} m"
-    f"\n\tsingle_particle_max = {np.round(radius_max, 3)} m"
-
-    f"\n\tsingle_force_min = {np.round(0.001*F_min, 1)} kN"
-    f"\n\tsingle_force_max = {np.round(0.001*F_max, 1)} kN"
-
-    f"\n\texpected_force = {np.round(0.001*E_Fmax, 3)} kN"
-    f"\n\ttotal_force = {np.round(0.001*total_force, 1)} kN"
-
-)
     plt.show()
 
 
