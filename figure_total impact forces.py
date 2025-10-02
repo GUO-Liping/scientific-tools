@@ -31,9 +31,9 @@ fig, axs = plt.subplots(1, 5, figsize=(16/2.54, 9/2.54), sharey=True)
 total_force_060 = np.array([ 3678.,  3991.,  6402.,  8033., 10135.])  # total_force
 total_force_064 = np.array([ 3678.,  4420.,  6681.,  8695., 10656.])  # total_force
 total_force_068 = np.array([ 3678.,  4800.,  6946.,  9234., 11177.])  # total_force
-axs[0].plot(flow_rate,total_force_060, 'o-', color=colors[0])
-axs[0].plot(flow_rate,total_force_064, 's-', color=colors[1])
-axs[0].plot(flow_rate,total_force_068, '^-', color=colors[2])
+axs[0].plot(flow_rate,total_force_060, 'o-', color=colors[0], label=r'$\alpha_s = 0.60$')
+axs[0].plot(flow_rate,total_force_064, 's-', color=colors[1], label=r'$\alpha_s = 0.64$')
+axs[0].plot(flow_rate,total_force_068, '^-', color=colors[2], label=r'$\alpha_s = 0.68$')
 
 # 数据2： 正弦波脉冲叠加
 total_force_060 = np.array([ 3678.,  5373.,  7720., 10162., 12637.])  # total_force
