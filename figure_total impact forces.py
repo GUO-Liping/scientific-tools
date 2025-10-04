@@ -89,7 +89,7 @@ for ax in axs:
 
 
 # 设置全局图例
-fig.legend(fontsize=8, bbox_to_anchor=(0.16, 0.06), ncol = 4, loc=2, borderaxespad=0)
+fig.legend(fontsize=8, bbox_to_anchor=(0.16, 0.06), ncol = 3, loc=2, borderaxespad=0)
 
 # 调整布局和图例位置
 plt.tight_layout()
