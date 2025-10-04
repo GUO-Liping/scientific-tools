@@ -21,8 +21,9 @@ plt.style.use('seaborn-v0_8-whitegrid')  # 更简洁的科研风格
 colors = [ '#999999', '#019092', '#015493']  
 
 
-DEM_Volumn = np.array([ 1000.,  3250.,  5500.,  7750., 10000.])
-flow_rate = np.array([173.7, 362.1, 550.6, 739. , 927.4])
+DEM_Volume = np.array([ 1000.,  3250.,  5500.,  7750., 10000.])
+DEM_impact_rate = np.array([59, 123, 187, 251, 315])
+DEM_volume_flux = np.array([173.7, 362.1, 550.6, 739. , 927.4])
 EF_max = np.array([4684., 4684., 4684., 4684., 4684.])
 
 fig, axs = plt.subplots(1, 5, figsize=(16/2.54, 9/2.54), sharey=True)
@@ -31,42 +32,45 @@ fig, axs = plt.subplots(1, 5, figsize=(16/2.54, 9/2.54), sharey=True)
 total_force_060 = np.array([ 3678.,  3991.,  6402.,  8033., 10135.])  # total_force
 total_force_064 = np.array([ 3678.,  4420.,  6681.,  8695., 10656.])  # total_force
 total_force_068 = np.array([ 3678.,  4800.,  6946.,  9234., 11177.])  # total_force
-axs[0].plot(flow_rate,total_force_060, 'o-', color=colors[0], label=r'$\alpha_s = 0.60$')
-axs[0].plot(flow_rate,total_force_064, 's-', color=colors[1], label=r'$\alpha_s = 0.64$')
-axs[0].plot(flow_rate,total_force_068, '^-', color=colors[2], label=r'$\alpha_s = 0.68$')
+axs[0].plot(DEM_impact_rate,total_force_060, '1-', color=colors[0], label=r'$\alpha_s = 0.60$')
+axs[0].plot(DEM_impact_rate,total_force_064, '2-', color=colors[1], label=r'$\alpha_s = 0.64$')
+axs[0].plot(DEM_impact_rate,total_force_068, '3-', color=colors[2], label=r'$\alpha_s = 0.68$')
 
 # 数据2： 正弦波脉冲叠加
 total_force_060 = np.array([ 3678.,  5373.,  7720., 10162., 12637.])  # total_force
 total_force_064 = np.array([ 3678.,  5598.,  8080., 10747., 13490.])  # total_force
 total_force_068 = np.array([ 3678.,  5787.,  8569., 11471., 14348.])  # total_force
-axs[1].plot(flow_rate,total_force_060, 'o-', color=colors[0])
-axs[1].plot(flow_rate,total_force_064, 's-', color=colors[1])
-axs[1].plot(flow_rate,total_force_068, '^-', color=colors[2])
+axs[1].plot(DEM_impact_rate,total_force_060, 'x-', color=colors[0])
+axs[1].plot(DEM_impact_rate,total_force_064, '+-', color=colors[1])
+axs[1].plot(DEM_impact_rate,total_force_068, '*-', color=colors[2])
 
 
 # 数据3： 梯形波脉冲叠加
 total_force_060 = np.array([ 3678.,  7357.,  8977., 11716., 14567.])  # total_force
 total_force_064 = np.array([ 3678.,  7357.,  9689., 12823., 16163.])  # total_force
 total_force_068 = np.array([ 3678.,  7357., 10220., 13542., 17288.])  # total_force
-axs[2].plot(flow_rate,total_force_060, 'o-', color=colors[0])
-axs[2].plot(flow_rate,total_force_064, 's-', color=colors[1])
-axs[2].plot(flow_rate,total_force_068, '^-', color=colors[2])
+axs[2].plot(DEM_impact_rate,total_force_060, 'o-', color=colors[0])
+axs[2].plot(DEM_impact_rate,total_force_064, 's-', color=colors[1])
+axs[2].plot(DEM_impact_rate,total_force_068, '^-', color=colors[2])
 
 # 数据5： 高斯波脉冲叠加
 total_force_060 = np.array([3678., 3754., 4691., 6214., 7793.])  # total_force
 total_force_064 = np.array([3678., 3808., 4956., 6637., 8316.])  # total_force
 total_force_068 = np.array([3678., 3881., 5250., 7025., 8833.])  # total_force
-axs[3].plot(flow_rate,total_force_060, 'o-', color=colors[0])
-axs[3].plot(flow_rate,total_force_064, 's-', color=colors[1])
-axs[3].plot(flow_rate,total_force_068, '^-', color=colors[2])
+axs[3].plot(DEM_impact_rate,total_force_060, 'o-', color=colors[0])
+axs[3].plot(DEM_impact_rate,total_force_064, 's-', color=colors[1])
+axs[3].plot(DEM_impact_rate,total_force_068, '^-', color=colors[2])
 
 # 数据4： 指数波脉冲叠加
 total_force_060 = np.array([3753., 4331., 5156., 6062., 7001.])  # total_force
 total_force_064 = np.array([3773., 4422., 5312., 6294., 7292.])  # total_force
 total_force_068 = np.array([3797., 4513., 5478., 6504., 7649.])  # total_force
-axs[4].plot(flow_rate,total_force_060, 'o-', color=colors[0])
-axs[4].plot(flow_rate,total_force_064, 's-', color=colors[1])
-axs[4].plot(flow_rate,total_force_068, '^-', color=colors[2])
+axs[4].plot(DEM_impact_rate,total_force_060, 'o-', color=colors[0])
+axs[4].plot(DEM_impact_rate,total_force_064, 's-', color=colors[1])
+axs[4].plot(DEM_impact_rate,total_force_068, '^-', color=colors[2])
+
+axs[0].set_ylabel('Total impact force (kN)', fontsize=10)
+axs[2].set_xlabel('Impact rate ($s^{-1}$)', fontsize=10)
 
 # 配色和标记
 # 配色1：'#32037D', '#7C1A97', '#C94E65'，蓝色、紫色、红色
@@ -79,7 +83,7 @@ labels = ['Narrow Grading', 'Medium Grading', 'Wide Grading']
 
 # 在每个子图添加scatter点和延长线
 for ax in axs:
-    ax.plot(flow_rate, EF_max, color='black', marker=None, linestyle='-.', label='Expected force')
+    ax.plot(DEM_impact_rate, EF_max, color='black', marker=None, linestyle='-.', label='Expected force')
     ## 纵向延长线
     #ax.vlines(single_particle_x, ymin=1500, ymax=single_particle_y, 
     #          color='black', linestyle=':', linewidth=0.8)

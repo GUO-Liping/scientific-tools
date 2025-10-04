@@ -65,13 +65,13 @@ def compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radiu
     t_elastoplastic = t_elastic + t_plastic
     return t_elastic, t_elastoplastic
 
-def compute_effective_flow_rate(pier_width, DEM_depth, radius_max, DEM_velocity):
+def compute_effective_volume_flux(pier_width, DEM_depth, radius_max, DEM_velocity):
     """计算桥墩有效宽度，根据截面形状调整。"""
     pier_width_effect = pier_width + 2 * radius_max
     DEM_depth_effect = DEM_depth
-    effective_flow_rate = pier_width_effect * DEM_depth_effect * DEM_velocity
+    effective_volume_flux = pier_width_effect * DEM_depth_effect * DEM_velocity
     
-    return effective_flow_rate
+    return effective_volume_flux
 
 def compute_Hertz_contact_forces(radius_min, radius_max, modulus_eq, dem_density, dem_velocity):
     """计算Hertz弹性接触理论中的接触力。"""
@@ -405,7 +405,7 @@ if __name__ == '__main__':
     
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
-    DEM_flow_rate = compute_effective_flow_rate(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
+    DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
     sigma_y = np.minimum(DEM_strength, Pier_strength)
 
     # 计算冲击时间
@@ -426,10 +426,11 @@ if __name__ == '__main__':
     #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
     flow_time = np.ones_like(E_Fmax)  # s
-    volume_total = DEM_flow_rate * flow_time
+    volume_total = DEM_volume_flux * flow_time
     radius_avg = (radius_max + radius_min)/2
-    number_of_DEM = np.round(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    delta_t_DEMs = flow_time / number_of_DEM
+    DEM_impact_rate = np.round(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    print('DEM_impact_rate=',DEM_impact_rate)
+    delta_t_DEMs = flow_time / DEM_impact_rate
     num_waves = np.maximum(np.ceil(t_contact_elastoplastic / delta_t_DEMs), 1).astype(int)
 
     # 碰撞过程时间离散性和总冲击力
@@ -443,7 +444,7 @@ if __name__ == '__main__':
     print('DEM_Volumn    =', np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
     print('DEM_depth     =', np.array2string(DEM_depth,                    separator=', ', precision=1), 'm')      
     print('ratio_solid   =', np.array2string(ratio_solid,                  separator=', ', precision=2), ' ')      
-    print('DEM_flow_rate =', np.array2string(DEM_flow_rate,                separator=', ', precision=1), 'm^3/s')      
+    print('DEM_volume_flux =', np.array2string(DEM_volume_flux,            separator=', ', precision=1), 'm^3/s')      
     print('num_waves     =', np.array2string(num_waves,                    separator=', ', precision=1), ' ')      
     print('delta_t_DEMs  =', np.array2string(delta_t_DEMs*1000,            separator=', ', precision=2), 'ms')      
     print('t_contact     =', np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=2), 'ms')      
