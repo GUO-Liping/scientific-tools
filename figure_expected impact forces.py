@@ -80,7 +80,8 @@ y_exp_err3   = np.vstack((y_exponential3-y_min3, y_max3-y_exponential3))
 # 配色1：'#32037D', '#7C1A97', '#C94E65'，蓝色、紫色、红色
 # 配色2：'#1f77b4', '#ff7f0e', '#2ca02c'，蓝色、橙色、绿色
 # 配色3：'#015493', '#019092', '#999999'，蓝色、绿色、灰色
-colors = [ '#999999', '#019092', '#015493']  
+#colors = [ '#999999', '#019092', '#015493'] 
+colors = ['#4189C8', '#F37E78', '#7f7f7f']  # 配色：Nature风格（蓝、红、灰） 
 markers = ['o', 's', 'D']                   # 圆形、方形、菱形
 labels = ['Narrow Grading', 'Medium Grading', 'Wide Grading']
 x_errs = [x_err1, x_err2, x_err3]
@@ -93,12 +94,12 @@ y_exp_errs = [y_exp_err1, y_exp_err2, y_exp_err3]
 linestyles = ['-','--','-.']
 
 # 绘制每个子图
-fig, axs = plt.subplots(1, 5, figsize=(16/2.54, 9/2.54), sharey=True)
+fig, axs = plt.subplots(1, 5, figsize=(16/2.54, 5/2.54), sharey=True)
 
 # 绘制统一函数
 def plot_error_bars(ax, x, ys, x_errs, title, ylabel=False):
     for y, color, marker, xerr, label, ls in zip(ys, colors, markers, x_errs, labels,linestyles):
-        ax.errorbar(x, y, xerr=xerr, fmt=marker, color=color, label=label,linestyle=ls,
+        ax.errorbar(x, y, xerr=xerr, fmt=marker, label=label,linestyle=ls,markerfacecolor='white',color=color,
                     capsize=3, elinewidth=1, markersize=4)
 
     ax.set_title(title, fontsize=8)
@@ -124,22 +125,21 @@ single_particle_y = np.array([2336,6490,12721])
 
 # 在每个子图添加scatter点和延长线
 for ax in axs:
-    ax.scatter(single_particle_x, single_particle_y, 
-               color='black', marker='^', s=30, label='Single Particle')
+    #ax.scatter(single_particle_x, single_particle_y, color='black', marker='.', s=30, label='Single Particle')
     ## 纵向延长线
-    #ax.vlines(single_particle_x, ymin=1500, ymax=single_particle_y, 
-    #          color='black', linestyle=':', linewidth=0.8)
+    ax.vlines(single_particle_x, ymin=1500, ymax=single_particle_y, 
+              color='darkgrey', linestyle=':', linewidth=0.8)
     ## 横向延长线
-    #ax.hlines(single_particle_y, xmin=0.25, xmax=single_particle_x, 
-    #          color='black', linestyle=':', linewidth=0.8)
+    ax.hlines(single_particle_y, xmin=0.25, xmax=single_particle_x, 
+              color='darkgrey', linestyle=':', linewidth=0.8)
 
 
 # 设置全局图例
-fig.legend(fontsize=8, bbox_to_anchor=(0.16, 0.06), ncol = 4, loc=2, borderaxespad=0)
+fig.legend(fontsize=8, bbox_to_anchor=(0.16, 0.10), ncol = 4, loc=2, borderaxespad=0)
 
 # 调整布局和图例位置
 plt.tight_layout()
-plt.subplots_adjust(bottom=0.15, top=0.95, left=0.1, right=0.95)  # 给图例留空间
+plt.subplots_adjust(bottom=0.28, top=0.9, left=0.10, right=0.98, hspace=0.2, wspace=0.2)  # 给图例留空间
 
 # 显示图表
 # Save the plot as EPS

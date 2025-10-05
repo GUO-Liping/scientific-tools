@@ -17,9 +17,14 @@ plt.rcParams.update({
     'pdf.fonttype': 42,
     'ps.fonttype': 42
 })
+# 使用 Seaborn 风格
+plt.style.use('seaborn-v0_8-whitegrid')  # 更简洁的科研风格
 
-# 配色：Nature风格（蓝、橙、灰）
-colors = ['#1f77b4', '#ff7f0e', '#7f7f7f']
+#colors = ['#1f77b4', '#ff7f0e', '#7f7f7f']  # 配色：Nature风格（蓝、橙、灰）
+#colors = ['#4189C8', '#F37E78', '#8D1755']  # 配色：Nature风格（蓝、红、褐）
+colors = ['#4189C8', '#F37E78', '#7f7f7f']  # 配色：Nature风格（蓝、红、灰）
+
+
 markers = ['o', 's', 'D']        # 圆、方、菱形
 linestyles = ['-', '--', '-.']   # 实线、虚线、点划线
 labels = [r'$\alpha_s = 0.60$', r'$\alpha_s = 0.64$', r'$\alpha_s = 0.68$']
@@ -56,7 +61,7 @@ data_sets = [
 titles = ['Triangle', 'Sine', 'Trapezoid', 'Exponential', 'Gaussian']
 
 # 创建子图
-fig, axs = plt.subplots(1, 5, figsize=(16/2.54, 9/2.54), sharey=True)
+fig, axs = plt.subplots(1, 5, figsize=(16/2.54, 5/2.54), sharey=True)
 
 # 绘图循环
 for idx, ax in enumerate(axs):
@@ -67,21 +72,23 @@ for idx, ax in enumerate(axs):
             marker=markers[i],
             linestyle=linestyles[i],
             color=colors[i],
-            markerfacecolor='white',
+            markerfacecolor=colors[i],
             markeredgecolor=colors[i],
+            markersize=3.6,
             label=labels[i] if idx == 0 else None  # 只在第一个子图加label
         )
     # 添加参考线
     ax.plot(DEM_impact_rate, EF_max, color='black', linestyle=':', label='Expected force' if idx == 0 else None)
     # ✅ 添加水平网格线
+    ax.grid(axis='x', linestyle=':', linewidth=0.6, alpha=0.7)
     ax.grid(axis='y', linestyle=':', linewidth=0.6, alpha=0.7)
     # 设置子图标题（可选）
-    ax.set_title(titles[idx], fontsize=9)
-    ax.set_xlabel('Impact rate (s$^{-1}$)', fontsize=9)
+    ax.set_title(titles[idx], fontsize=8)
     ax.tick_params(direction='in', length=3)
 
-# 统一 y 轴标签
-axs[0].set_ylabel('Total impact force (kN)', fontsize=9)
+# 统一x y 轴标签
+axs[0].set_ylabel('Total impact force (kN)', fontsize=10)
+axs[2].set_xlabel('Impact rate (s$^{-1}$)', fontsize=10)
 
 # 图例放底部（全局）
 fig.legend(
@@ -92,8 +99,8 @@ fig.legend(
 )
 
 # 布局调整
-plt.tight_layout()
-plt.subplots_adjust(bottom=0.18, top=0.93, left=0.10, right=0.98)
+#plt.tight_layout()
+plt.subplots_adjust(bottom=0.28, top=0.9, left=0.10, right=0.98, hspace=0.2, wspace=0.2)
 
 # 保存为高质量矢量图（推荐期刊投稿）
 # plt.savefig('nature_ready_plot.pdf', dpi=600, bbox_inches='tight')
