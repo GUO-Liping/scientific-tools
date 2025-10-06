@@ -1,211 +1,122 @@
-import taichi as ti
-import math
-import os
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
 
-ti.init(arch=ti.gpu)
-vec = ti.math.vec2
+# 设置字体、大小、风格（期刊风格）
+matplotlib.rcParams['font.family'] = 'Arial'
+matplotlib.rcParams['axes.unicode_minus'] = False
+plt.rcParams.update({
+    'font.size': 8,
+    'axes.labelsize': 9,
+    'axes.titlesize': 10,
+    'xtick.labelsize': 8,
+    'ytick.labelsize': 8,
+    'legend.fontsize': 8,
+    'lines.linewidth': 1.2,
+    'lines.markersize': 5,
+    'pdf.fonttype': 42,
+    'ps.fonttype': 42
+})
+# 使用 Seaborn 风格
+plt.style.use('seaborn-v0_8-whitegrid')  # 更简洁的科研风格
 
-SAVE_FRAMES = False
-
-window_size = 1280  # Number of pixels of the window
-n = 8192  # Number of grains
-
-density = 100.0
-stiffness = 8e3
-restitution_coef = 0.001
-gravity = -9.81
-dt = 0.0001  # Larger dt might lead to unstable results.
-substeps = 60
-
-
-@ti.dataclass
-class Grain:
-    p: vec  # Position
-    m: ti.f32  # Mass
-    r: ti.f32  # Radius
-    v: vec  # Velocity
-    a: vec  # Acceleration
-    f: vec  # Force
+#colors = ['#1f77b4', '#ff7f0e', '#7f7f7f']  # 配色：Nature风格（蓝、橙、灰）
+#colors = ['#4189C8', '#F37E78', '#8D1755']  # 配色：Nature风格（蓝、红、褐）
+colors = ['#4189C8', '#F37E78', '#7f7f7f']  # 配色：Nature风格（蓝、红、灰）
 
 
-gf = Grain.field(shape=(n, ))
+markers = ['o', 's', 'D']        # 圆、方、菱形
+linestyles = ['-', '--', '-.']   # 实线、虚线、点划线
+labels = ['Small particles dominant', 'Medium particles dominant', 'Large particles dominant']
 
-grid_n = 128
-grid_size = 1.0 / grid_n  # Simulation domain of size [0, 1]
-print(f"Grid size: {grid_n}x{grid_n}")
+# 横轴 & 参考线
+DEM_impact_rate60 = np.array([ 59.,  77.,  96., 114., 132., 150., 169., 187., 205., 223., 242., 260., 278., 297., 315.])
+DEM_impact_rate64 = np.array([ 63.,  82., 102., 121., 141., 160., 180., 199., 219., 238., 258., 277., 297., 316., 336.])
+DEM_impact_rate68 = np.array([ 67.,  88., 108., 129., 150., 170., 191., 212., 233., 253., 274., 295., 315., 336., 357.])
+EF_max_weibull_r = np.array([5177.] * 15)
+EF_max_normal = np.array([6869.] * 15)
+EF_max_weibull_l = np.array([8690.] * 15)
 
-grain_r_min = 0.002
-grain_r_max = 0.003
+DEM_impact_rate = [DEM_impact_rate68, DEM_impact_rate68, DEM_impact_rate68]
+EF_max = [EF_max_weibull_r, EF_max_normal, EF_max_weibull_l]
+# 各图数据
+data_sets = [
+    # 三角脉冲
+    [np.array([ 4066.,  4066.,  4066.,  4066.,  4378.,  5312.,  6083.,  6669.,  7154.,  7580.,  7922.,  8390.,  9200.,  9874., 10499.]),
+     np.array([ 5387.,  5387.,  5387.,  5387.,  5801.,  7039.,  8061.,  8837.,  9479., 10044., 10497., 11118., 12191., 13084., 13912.]),
+     np.array([ 6825.,  6825.,  6825.,  6825.,  7349.,  8917., 10211., 11194., 12008., 12724., 13297., 14084., 15444., 16574., 17623.])],
+    # 正弦波脉冲
+    [np.array([ 4066.,  4066.,  4069.,  5221.,  5921.,  6399.,  7157.,  7986.,  8635.,  9215., 10099., 10838., 11486., 12235., 13065.]),
+     np.array([ 5387.,  5387.,  5392.,  6919.,  7847.,  8480.,  9484., 10582., 11442., 12211., 13383., 14362., 15220., 16213., 17313.]),
+     np.array([ 6825.,  6825.,  6831.,  8765.,  9940., 10742., 12013., 13405., 14495., 15469., 16953., 18194., 19281., 20538., 21931.])],
+    # 梯形波脉冲
+    [np.array([ 4066.,  4066.,  5430.,  7223.,  8131.,  8131.,  8131.,  9277., 10247., 11100., 11784., 12545., 13626., 14525., 15358.]),
+     np.array([ 5387.,  5387.,  7195.,  9572., 10775., 10775., 10775., 12293., 13579., 14709., 15615., 16624., 18056., 19247., 20351.]),
+     np.array([ 6825.,  6825.,  9114., 12125., 13649., 13649., 13649., 15573., 17201., 18633., 19780., 21059., 22873., 24381., 25780.])],
+    # 指数波脉冲
+    [np.array([4066., 4230., 4366., 4527., 4780., 4990., 5215., 5426., 5741., 5991., 6226., 6545., 6809., 7056., 7311.]),
+     np.array([5387., 5605., 5785., 5999., 6334., 6612., 6910., 7190., 7607., 7939., 8250., 8673., 9023., 9350., 9688.]),
+     np.array([ 6825.,  7100.,  7328.,  7600.,  8024.,  8376.,  8754.,  9108.,  9636., 10057., 10450., 10987., 11430., 11844., 12273.])],
+    # 高斯波脉冲
+    [np.array([4066., 4066., 4066., 4066., 4146., 4292., 4548., 4873., 5255., 5689., 6129., 6590., 7066., 7519., 7994.]),
+     np.array([ 5387.,  5387.,  5387.,  5387.,  5494.,  5687.,  6026.,  6457.,  6963.,  7538.,  8122.,  8732.,  9364.,  9964., 10593.]),
+     np.array([ 6825.,  6825.,  6825.,  6825.,  6959.,  7204.,  7634.,  8179.,  8820.,  9549., 10289., 11062., 11862., 12622., 13419.])]
+]
 
-assert grain_r_max * 2 < grid_size
+# 子图标题（可选）
+titles = ['Triangle', 'Sine', 'Trapezoid', 'Exponential', 'Gaussian']
 
+# 创建子图
+fig, axs = plt.subplots(1, 5, figsize=(16/2.54, 5/2.54), sharey=True)
 
-@ti.kernel
-def init():
-    for i in gf:
-        # Spread grains in a restricted area.
-        l = i * grid_size
-        padding = 0.1
-        region_width = 1.0 - padding * 2
-        pos = vec(l % region_width + padding + grid_size * ti.random() * 0.2,
-                  l // region_width * grid_size + 0.3)
-        gf[i].p = pos
-        gf[i].r = ti.random() * (grain_r_max - grain_r_min) + grain_r_min
-        gf[i].m = density * math.pi * gf[i].r**2
+# 绘图循环
+for idx, ax in enumerate(axs):
+    for i in range(3):
+        ax.plot(
+            DEM_impact_rate[i],
+            data_sets[idx][i],
+            linestyle=linestyles[i],
+            color=colors[i],
+            label=labels[i] if idx == 0 else None  # 只在第一个子图加label
+        )
+        ax.scatter(
+            DEM_impact_rate[i][::4],
+            data_sets[idx][i][::4],
+            marker=markers[i],
+            color=colors[i],
+            facecolors='white',         # 中空点
+            #edgecolors='green',         # 绿色边框
+            s=10,
+            label=labels[i] if idx == 0 else None  # 只在第一个子图加label
+        )
+        # 添加参考线
+        ax.plot(DEM_impact_rate[i], np.pi/4*EF_max[i], color='black', linestyle='-', label='Expected force' if idx == 0 else None)
 
+    # ✅ 添加水平网格线
+    ax.grid(axis='x', linestyle=':', linewidth=0.6, alpha=0.7)
+    ax.grid(axis='y', linestyle=':', linewidth=0.6, alpha=0.7)
+    # 设置子图标题（可选）
+    ax.set_title(titles[idx], fontsize=8)
+    ax.tick_params(direction='in', length=3)
 
-@ti.kernel
-def update():
-    for i in gf:
-        a = gf[i].f / gf[i].m
-        gf[i].v += (gf[i].a + a) * dt / 2.0
-        gf[i].p += gf[i].v * dt + 0.5 * a * dt**2
-        gf[i].a = a
+# 统一x y 轴标签
+axs[0].set_ylabel('Total impact force (kN)', fontsize=10)
+axs[2].set_xlabel('Impact rate (s$^{-1}$)', fontsize=10)
 
+# 图例放底部（全局）
+fig.legend(
+    loc='lower center',
+    ncol=4,
+    bbox_to_anchor=(0.5, -0.12),
+    frameon=False
+)
 
-@ti.kernel
-def apply_bc():
-    bounce_coef = 0.3  # Velocity damping
-    for i in gf:
-        x = gf[i].p[0]
-        y = gf[i].p[1]
+# 布局调整
+#plt.tight_layout()
+plt.subplots_adjust(bottom=0.28, top=0.9, left=0.10, right=0.98, hspace=0.2, wspace=0.2)
 
-        if y - gf[i].r < 0:
-            gf[i].p[1] = gf[i].r
-            gf[i].v[1] *= -bounce_coef
+# 保存为高质量矢量图（推荐期刊投稿）
+# plt.savefig('nature_ready_plot.pdf', dpi=600, bbox_inches='tight')
 
-        elif y + gf[i].r > 1.0:
-            gf[i].p[1] = 1.0 - gf[i].r
-            gf[i].v[1] *= -bounce_coef
-
-        if x - gf[i].r < 0:
-            gf[i].p[0] = gf[i].r
-            gf[i].v[0] *= -bounce_coef
-
-        elif x + gf[i].r > 1.0:
-            gf[i].p[0] = 1.0 - gf[i].r
-            gf[i].v[0] *= -bounce_coef
-
-
-@ti.func
-def resolve(i, j):
-    rel_pos = gf[j].p - gf[i].p
-    dist = ti.sqrt(rel_pos[0]**2 + rel_pos[1]**2)
-    delta = -dist + gf[i].r + gf[j].r  # delta = d - 2 * r
-    if delta > 0:  # in contact
-        normal = rel_pos / dist
-        f1 = normal * delta * stiffness
-        # Damping force
-        M = (gf[i].m * gf[j].m) / (gf[i].m + gf[j].m)
-        K = stiffness
-        C = 2. * (1. / ti.sqrt(1. + (math.pi / ti.log(restitution_coef))**2)
-                  ) * ti.sqrt(K * M)
-        V = (gf[j].v - gf[i].v) * normal
-        f2 = C * V * normal
-        gf[i].f += f2 - f1
-        gf[j].f -= f2 - f1
-
-
-list_head = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
-list_cur = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
-list_tail = ti.field(dtype=ti.i32, shape=grid_n * grid_n)
-
-grain_count = ti.field(dtype=ti.i32,
-                       shape=(grid_n, grid_n),
-                       name="grain_count")
-column_sum = ti.field(dtype=ti.i32, shape=grid_n, name="column_sum")
-prefix_sum = ti.field(dtype=ti.i32, shape=(grid_n, grid_n), name="prefix_sum")
-particle_id = ti.field(dtype=ti.i32, shape=n, name="particle_id")
-
-
-@ti.kernel
-def contact(gf: ti.template()):
-    '''
-    Handle the collision between grains.
-    '''
-    for i in gf:
-        gf[i].f = vec(0., gravity * gf[i].m)  # Apply gravity.
-
-    grain_count.fill(0)
-
-    for i in range(n):
-        grid_idx = ti.floor(gf[i].p * grid_n, int)
-        grain_count[grid_idx] += 1
-
-    for i in range(grid_n):
-        sum = 0
-        for j in range(grid_n):
-            sum += grain_count[i, j]
-        column_sum[i] = sum
-
-    prefix_sum[0, 0] = 0
-
-    ti.loop_config(serialize=True)
-    for i in range(1, grid_n):
-        prefix_sum[i, 0] = prefix_sum[i - 1, 0] + column_sum[i - 1]
-
-    for i in range(grid_n):
-        for j in range(grid_n):
-            if j == 0:
-                prefix_sum[i, j] += grain_count[i, j]
-            else:
-                prefix_sum[i, j] = prefix_sum[i, j - 1] + grain_count[i, j]
-
-            linear_idx = i * grid_n + j
-
-            list_head[linear_idx] = prefix_sum[i, j] - grain_count[i, j]
-            list_cur[linear_idx] = list_head[linear_idx]
-            list_tail[linear_idx] = prefix_sum[i, j]
-
-    for i in range(n):
-        grid_idx = ti.floor(gf[i].p * grid_n, int)
-        linear_idx = grid_idx[0] * grid_n + grid_idx[1]
-        grain_location = ti.atomic_add(list_cur[linear_idx], 1)
-        particle_id[grain_location] = i
-
-    # Brute-force collision detection
-    '''
-    for i in range(n):
-        for j in range(i + 1, n):
-            resolve(i, j)
-    '''
-
-    # Fast collision detection
-    for i in range(n):
-        grid_idx = ti.floor(gf[i].p * grid_n, int)
-        x_begin = max(grid_idx[0] - 1, 0)
-        x_end = min(grid_idx[0] + 2, grid_n)
-
-        y_begin = max(grid_idx[1] - 1, 0)
-        y_end = min(grid_idx[1] + 2, grid_n)
-
-        for neigh_i in range(x_begin, x_end):
-            for neigh_j in range(y_begin, y_end):
-                neigh_linear_idx = neigh_i * grid_n + neigh_j
-                for p_idx in range(list_head[neigh_linear_idx],
-                                   list_tail[neigh_linear_idx]):
-                    j = particle_id[p_idx]
-                    if i < j:
-                        resolve(i, j)
-
-
-init()
-gui = ti.GUI('Taichi DEM', (window_size, window_size))
-step = 0
-
-if SAVE_FRAMES:
-    os.makedirs('output', exist_ok=True)
-
-while gui.running:
-    for s in range(substeps):
-        update()
-        apply_bc()
-        contact(gf)
-    pos = gf.p.to_numpy()
-    r = gf.r.to_numpy() * window_size
-    gui.circles(pos, radius=r)
-    if SAVE_FRAMES:
-        gui.show(f'output/{step:06d}.png')
-    else:
-        gui.show()
-    step += 1
+# 显示图形
+plt.show()

@@ -370,8 +370,8 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    case_number = 5
-    DEM_Volumn = np.linspace(1000, 10000, case_number)      # 碎屑流方量：m^3
+    case_number = 60
+    DEM_Volumn = np.linspace(1000, 20000, case_number)      # 碎屑流方量：m^3
     DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))
 
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
@@ -387,12 +387,12 @@ if __name__ == '__main__':
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.3*np.ones(case_number)
-    radius_max = 1.2*np.ones(case_number)
+    radius_min = 0.45*np.ones(case_number)
+    radius_max = 1.05*np.ones(case_number)
 
-    ratio_solid = 0.60 * np.ones(case_number) # 固相体积分数np.pi/6.0
+    ratio_solid = 0.68 * np.ones(case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
-    wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock'
+    wave_type = 'trapezoidal'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
     dist_type = 'weibull_r'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
 
@@ -429,7 +429,6 @@ if __name__ == '__main__':
     volume_total = DEM_volume_flux * flow_time
     radius_avg = (radius_max + radius_min)/2
     DEM_impact_rate = np.round(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    print('DEM_impact_rate=',DEM_impact_rate)
     delta_t_DEMs = flow_time / DEM_impact_rate
     num_waves = np.maximum(np.ceil(t_contact_elastoplastic / delta_t_DEMs), 1).astype(int)
 
@@ -441,20 +440,21 @@ if __name__ == '__main__':
 
     total_force = gamma_time * gamma_space * angle_impact * E_Fmax
 
-    print('DEM_Volumn    =', np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
-    print('DEM_depth     =', np.array2string(DEM_depth,                    separator=', ', precision=1), 'm')      
-    print('ratio_solid   =', np.array2string(ratio_solid,                  separator=', ', precision=2), ' ')      
+    print('DEM_impact_rate=',  np.array2string(DEM_impact_rate,              separator=', ', precision=1), 'm^3')
+    print('DEM_Volumn    =',   np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
+    print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=1), 'm')      
+    print('ratio_solid   =',   np.array2string(ratio_solid,                  separator=', ', precision=2), ' ')      
     print('DEM_volume_flux =', np.array2string(DEM_volume_flux,            separator=', ', precision=1), 'm^3/s')      
-    print('num_waves     =', np.array2string(num_waves,                    separator=', ', precision=1), ' ')      
-    print('delta_t_DEMs  =', np.array2string(delta_t_DEMs*1000,            separator=', ', precision=2), 'ms')      
-    print('t_contact     =', np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=2), 'ms')      
-    print('DEM_velocity  =', np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s')      
-    print('radius_min    =', np.array2string(radius_min,                   separator=', ', precision=1), 'm')      
-    print('radius_max    =', np.array2string(radius_max,                   separator=', ', precision=1), 'm')      
-    print('F_min         =', np.array2string(F_min/1000,                   separator=', ', precision=0), 'kN')      
-    print('F_max         =', np.array2string(F_max/1000,                   separator=', ', precision=0), 'kN')      
-    print('E_Fmax        =', np.array2string(E_Fmax/1000,                  separator=', ', precision=0), 'kN')      
-    print('total_force   =', np.array2string(total_force/1000,             separator=', ', precision=0), 'kN')
+    print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' ')      
+    print('delta_t_DEMs  =',   np.array2string(delta_t_DEMs*1000,            separator=', ', precision=2), 'ms')      
+    print('t_contact     =',   np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=2), 'ms')      
+    print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s')      
+    print('radius_min    =',   np.array2string(radius_min,                   separator=', ', precision=1), 'm')      
+    print('radius_max    =',   np.array2string(radius_max,                   separator=', ', precision=1), 'm')      
+    print('F_min         =',   np.array2string(F_min/1000,                   separator=', ', precision=0), 'kN')      
+    print('F_max         =',   np.array2string(F_max/1000,                   separator=', ', precision=0), 'kN')      
+    print('E_Fmax        =',   np.array2string(E_Fmax/1000,                  separator=', ', precision=0), 'kN')      
+    print('total_force   =',   np.array2string(total_force/1000,             separator=', ', precision=0), 'kN')
 
     plt.show()
 

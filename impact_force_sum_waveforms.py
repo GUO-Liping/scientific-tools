@@ -85,7 +85,7 @@ def plot_waveforms(waveforms, total_wave, time_values, wave_type):
 # ======================== 主程序 ========================
 if __name__ == "__main__":
     wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian', 'exponential', 'trapezoidal']
-    t_contact = 0.0003  # 每个波的持续时间
+    t_contact = 0.0012  # 每个波的持续时间
     delta_t_DEMs = 0.0001       # 相邻波形间隔
     amplitude = 1.0
     num_waves = np.maximum(np.ceil(t_contact / delta_t_DEMs), 1).astype(int)
