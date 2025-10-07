@@ -370,8 +370,8 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    case_number = 60
-    DEM_Volumn = np.linspace(1000, 20000, case_number)      # 碎屑流方量：m^3
+    case_number = 5
+    DEM_Volumn = np.array([1000, 2000, 4000, 8000, 16000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
     DEM_depth = (3.2 + (14.0-3.2)/(8000-1000) * (DEM_Volumn-1000))
 
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
@@ -387,13 +387,13 @@ if __name__ == '__main__':
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.45*np.ones(case_number)
-    radius_max = 1.05*np.ones(case_number)
+    radius_min = 0.6*np.ones(case_number)
+    radius_max = 1.2*np.ones(case_number)
 
     ratio_solid = 0.68 * np.ones(case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
-    wave_type = 'trapezoidal'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
-    dist_type = 'weibull_r'  # 'uniform','normal','exponential','weibull_l','weibull_r'
+    wave_type = 'sine'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
+    dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
 
     # Pier_shape = 'square'
