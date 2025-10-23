@@ -2,6 +2,7 @@ import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
+from scipy.optimize import curve_fit
 from scipy import stats
 import math
 
@@ -72,6 +73,47 @@ def compute_effective_volume_flux(pier_width, DEM_depth, radius_max, DEM_velocit
     effective_volume_flux = pier_width_effect * DEM_depth_effect * DEM_velocity
     
     return effective_volume_flux
+
+def compute_DEM_depth(x_query):
+    """
+    查询给定 x_query 对应的平滑拟合值。
+    曲线特点：先上升后平缓，右端趋于18。
+    内部自动完成拟合和绘图。
+    """
+    # 原始数据
+    x_data = np.array([1000, 2000, 4000, 8000, 16000])
+    y_data = np.array([3.2, 6.4, 12.8, 16.0, 18.0])
+
+    # 指数饱和模型： y = a - b * exp(-c * x)
+    def exp_saturate(x, a, b, c):
+        return a - b * np.exp(-c * x)
+
+    # 初始猜测参数
+    p0 = [max(y_data), max(y_data)-min(y_data), 1e-4]
+
+    # 曲线拟合
+    popt, _ = curve_fit(exp_saturate, x_data, y_data, p0=p0, maxfev=10000)
+
+    # 绘制拟合曲线
+    '''
+    x_fit = np.linspace(min(x_data), max(x_data), 200)
+    y_fit = exp_saturate(x_fit, *popt)  # * 的作用是将列表解包成多个独立参数
+
+    plt.figure(figsize=(6,4))
+    plt.scatter(x_data, y_data, color='red', label='data points')
+    plt.plot(x_fit, y_fit, 'b-', label='fitted smooth curve')
+    plt.axvline(x_query, color='gray', linestyle='--', label=f'x={x_query}')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title('Smooth saturating fit (approaching 18)')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    '''
+    # 返回查询值
+    return exp_saturate(x_query, *popt)
+
 
 def compute_Hertz_contact_forces(radius_min, radius_max, modulus_eq, dem_density, dem_velocity):
     """计算Hertz弹性接触理论中的接触力。"""
@@ -370,9 +412,8 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    case_number = 5
-    DEM_Volumn = np.array([1000, 2000, 4000, 8000, 16000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
-    DEM_depth = (3.2 + (16.0-3.2)/(8000-1000) * (DEM_Volumn-1000))
+    case_number = 6
+    DEM_Volumn = np.array([1000, 2000, 4000, 8000, 12000, 16000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
 
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
@@ -393,7 +434,7 @@ if __name__ == '__main__':
     ratio_solid = 0.68 * np.ones(case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
     wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
-    dist_type = 'weibull_l'  # 'uniform','normal','exponential','weibull_l','weibull_r'
+    dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
 
     # Pier_shape = 'square'
@@ -405,7 +446,9 @@ if __name__ == '__main__':
     
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
+    DEM_depth = compute_DEM_depth(DEM_Volumn)
     DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
+
     sigma_y = np.minimum(DEM_strength, Pier_strength)
 
     # 计算冲击时间
@@ -426,9 +469,9 @@ if __name__ == '__main__':
     #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
     flow_time = np.ones_like(E_Fmax)  # s
-    volume_total = DEM_volume_flux * flow_time
-    radius_avg = (radius_max + radius_min)/2
-    DEM_impact_rate = np.round(ratio_solid * volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    flow_volume_total = DEM_volume_flux * flow_time
+    radius_avg = np.sqrt((radius_max**2 + radius_max*radius_min + radius_min**2)/3)
+    DEM_impact_rate = np.round(ratio_solid * flow_volume_total / (4/3 * np.pi * (radius_avg**3 )))
     delta_t_DEMs = flow_time / DEM_impact_rate
     num_waves = np.maximum(np.ceil(t_contact_elastoplastic / delta_t_DEMs), 1).astype(int)
 
