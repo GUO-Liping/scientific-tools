@@ -111,8 +111,11 @@ def compute_DEM_depth(x_query):
     plt.tight_layout()
     plt.show()
     '''
+    depth = exp_saturate(x_query, *popt)
+    if depth <= 0:
+        raise ValueError('The flow depth is negative, please check the input parameters!')
     # 返回查询值
-    return exp_saturate(x_query, *popt)
+    return depth
 
 
 def compute_Hertz_contact_forces(radius_min, radius_max, modulus_eq, dem_density, dem_velocity):
@@ -412,26 +415,26 @@ if __name__ == '__main__':
     # 参数定义
 
     # This study
-    case_number = 5
-    DEM_Volumn = 16000 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
+    case_number = 1
+    DEM_Volumn = 1.1 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
 
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 12.8 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
-    DEM_density = 2550 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
-    DEM_modulus = 50e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.2 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_velocity = 1.5 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
+    DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
+    DEM_miu = 0.25 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
 
     # c_radius = np.array([0.45,0.75,1.05])
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.3*np.ones(case_number)
-    radius_max = 1.2*np.ones(case_number)
+    radius_min = 0.003/2*np.ones(case_number)
+    radius_max = 0.003/2*np.ones(case_number)
 
-    ratio_solid = 0.68 * np.ones(case_number) # 固相体积分数np.pi/6.0
+    ratio_solid = np.pi/6.0 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
     wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
     dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
@@ -439,8 +442,8 @@ if __name__ == '__main__':
 
     # Pier_shape = 'square'
     Pier_shape = 'round'
-    Pier_width = 2.2 * np.ones(case_number)        # m
-    Pier_modulus = 30e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
+    Pier_width = 0.2 * np.ones(case_number)        # m
+    Pier_modulus = 3e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
     Pier_strength = 30e6 * np.ones(case_number)          # Pa C30混凝土强度:30 MPa
     
