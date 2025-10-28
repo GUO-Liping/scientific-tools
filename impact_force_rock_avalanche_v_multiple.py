@@ -416,12 +416,12 @@ if __name__ == '__main__':
 
     # This study
     case_number = 1
-    DEM_Volumn = 1.1 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
+    DEM_Volumn = 0.1 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
 
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 1.5 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_velocity = 2.6 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
     DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.25 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
@@ -431,8 +431,8 @@ if __name__ == '__main__':
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.003/2*np.ones(case_number)
-    radius_max = 0.003/2*np.ones(case_number)
+    radius_min = 0.010/2*np.ones(case_number)
+    radius_max = 0.010/2*np.ones(case_number)
 
     ratio_solid = np.pi/6.0 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
@@ -441,7 +441,7 @@ if __name__ == '__main__':
 
 
     # Pier_shape = 'square'
-    Pier_shape = 'round'
+    Pier_shape = 'square'
     Pier_width = 0.2 * np.ones(case_number)        # m
     Pier_modulus = 3e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
@@ -449,7 +449,7 @@ if __name__ == '__main__':
     
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
-    DEM_depth = compute_DEM_depth(DEM_Volumn)
+    DEM_depth = 0.037 * np.ones(case_number)  # compute_DEM_depth(DEM_Volumn), This function is for Yaoheba Rock Avalanche only.
     DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
     sigma_y = np.minimum(DEM_strength, Pier_strength)
@@ -490,17 +490,17 @@ if __name__ == '__main__':
     print('DEM_Volumn    =',   np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
     print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=1), 'm')      
     print('ratio_solid   =',   np.array2string(ratio_solid,                  separator=', ', precision=2), ' ')      
-    print('DEM_volume_flux =', np.array2string(DEM_volume_flux,            separator=', ', precision=1), 'm^3/s')      
+    print('DEM_volume_flux =', np.array2string(DEM_volume_flux,              separator=', ', precision=1), 'm^3/s')      
     print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' ')      
-    print('delta_t_DEMs  =',   np.array2string(delta_t_DEMs*1000,            separator=', ', precision=2), 'ms')      
-    print('t_contact     =',   np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=2), 'ms')      
+    print('delta_t_DEMs  =',   np.array2string(delta_t_DEMs*1000,            separator=', ', precision=3), 'ms')      
+    print('t_contact     =',   np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=3), 'ms')      
     print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s')      
-    print('radius_min    =',   np.array2string(radius_min,                   separator=', ', precision=1), 'm')      
-    print('radius_max    =',   np.array2string(radius_max,                   separator=', ', precision=1), 'm')      
-    print('F_min         =',   np.array2string(F_min/1000,                   separator=', ', precision=0), 'kN')      
-    print('F_max         =',   np.array2string(F_max/1000,                   separator=', ', precision=0), 'kN')      
-    print('E_Fmax        =',   np.array2string(E_Fmax/1000,                  separator=', ', precision=0), 'kN')      
-    print('total_force   =',   np.array2string(total_force/1000,             separator=', ', precision=0), 'kN')
+    print('radius_min    =',   np.array2string(radius_min*1000,              separator=', ', precision=1), 'mm')      
+    print('radius_max    =',   np.array2string(radius_max*1000,              separator=', ', precision=1), 'mm')      
+    print('F_min         =',   np.array2string(F_min/1.000,                  separator=', ', precision=2), 'N')      
+    print('F_max         =',   np.array2string(F_max/1.000,                  separator=', ', precision=2), 'N')      
+    print('E_Fmax        =',   np.array2string(E_Fmax/1.000,                 separator=', ', precision=2), 'N')      
+    print('total_force   =',   np.array2string(total_force/1.000,            separator=', ', precision=2), 'N')
 
     plt.show()
 
