@@ -425,7 +425,7 @@ if __name__ == '__main__':
     DEM_depth = 0.026 * np.ones(case_number)  # compute_DEM_depth(DEM_Volumn), This function is for Yaoheba Rock Avalanche only.
     DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.30 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
 
     # c_radius = np.array([0.45,0.75,1.05])
