@@ -416,40 +416,40 @@ if __name__ == '__main__':
 
     # This study
     case_number = 1
-    DEM_Volumn = 0.1 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
+    #DEM_Volumn = 0.1 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
 
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 2.6 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_velocity = 2.2 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_depth = 0.026 * np.ones(case_number)  # compute_DEM_depth(DEM_Volumn), This function is for Yaoheba Rock Avalanche only.
     DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.25 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_miu = 0.30 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
 
     # c_radius = np.array([0.45,0.75,1.05])
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.010/2*np.ones(case_number)
-    radius_max = 0.010/2*np.ones(case_number)
+    radius_min = 0.003/2*np.ones(case_number)
+    radius_max = 0.003/2*np.ones(case_number)
 
-    ratio_solid = np.pi/6.0 * np.ones(case_number) # 固相体积分数0.61-0.68
+    ratio_solid = 0.64 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
     wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
     dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
 
-    # Pier_shape = 'square'
+    # Pier_shape = 'square', 'round'
     Pier_shape = 'square'
     Pier_width = 0.2 * np.ones(case_number)        # m
-    Pier_modulus = 3e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
-    Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
+    Pier_modulus = 3.0e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
+    Pier_miu = 0.3 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
     Pier_strength = 30e6 * np.ones(case_number)          # Pa C30混凝土强度:30 MPa
     
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
-    DEM_depth = 0.037 * np.ones(case_number)  # compute_DEM_depth(DEM_Volumn), This function is for Yaoheba Rock Avalanche only.
     DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
     sigma_y = np.minimum(DEM_strength, Pier_strength)
@@ -487,8 +487,8 @@ if __name__ == '__main__':
     total_force = gamma_time * gamma_space * angle_impact * E_Fmax
 
     print('DEM_impact_rate=',  np.array2string(DEM_impact_rate,              separator=', ', precision=1), 's^{-1}')
-    print('DEM_Volumn    =',   np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
-    print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=1), 'm')      
+    #print('DEM_Volumn    =',   np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
+    print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=3), 'm')      
     print('ratio_solid   =',   np.array2string(ratio_solid,                  separator=', ', precision=2), ' ')      
     print('DEM_volume_flux =', np.array2string(DEM_volume_flux,              separator=', ', precision=1), 'm^3/s')      
     print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' ')      
@@ -520,7 +520,7 @@ if __name__ == '__main__':
     Pier_shape = 'square'
     # Pier_shape = 'round'
     Pier_width = 0.2        # m
-    Pier_modulus = 3.0e9    # Pa PMMA:3.0GPa
+    Pier_modulus = 3.0e9    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
     Pier_miu = 0.3          # Poisson's ratio 
     sigma_y = 50e6          # Pa PMMA:50 - 77 MPa
     
