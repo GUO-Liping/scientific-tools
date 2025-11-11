@@ -16,6 +16,18 @@ def generate_waveform(wave_type, num_points=100, amplitude=1.0):
     
     elif wave_type == 'square':
         return np.full(num_points, amplitude)
+
+    elif wave_type == 'trapezoidal':
+        num_rise = round(num_points / 8)
+        rise = np.linspace(0, amplitude, num_rise)
+        const = np.full(num_points - 2*num_rise, amplitude)
+        fall = np.linspace(amplitude, 0, num_rise)
+        return np.concatenate((rise, const, fall),axis=0)
+
+    
+    elif wave_type in ('exponential', 'shock'):
+        b = -np.log(0.02)/1.0
+        return amplitude * np.exp(-b*x)
     
     elif wave_type == 'sawtooth':
         return amplitude * x
@@ -72,19 +84,31 @@ def plot_waveforms(waveforms, total_wave, time_values, wave_type):
 
 # ======================== 主程序 ========================
 if __name__ == "__main__":
-    wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian']
-    num_waves = 6
-    wave_duration = 0.0005  # 每个波的持续时间
-    delta_t = wave_duration/num_waves       # 相邻波形间隔
+    wave_types = ['sine', 'triangle', 'square', 'sawtooth', 'gaussian', 'exponential', 'trapezoidal']
+    t_contact = 0.0012  # 每个波的持续时间
+    delta_t_DEMs = 0.0001       # 相邻波形间隔
     amplitude = 1.0
+    num_waves = np.maximum(np.ceil(t_contact / delta_t_DEMs), 1).astype(int)
+
 
     for wave_type in wave_types:
         waveforms, total_wave, time_values = generate_wave_sequence(
             wave_type=wave_type,
             num_waves=num_waves,
-            wave_duration=wave_duration,
-            delta_t=delta_t,
+            wave_duration=t_contact,
+            delta_t=delta_t_DEMs,
             amplitude=amplitude
         )
         plot_waveforms(waveforms, total_wave, time_values, wave_type)
+
+    wave_type = 'sine'
+    if wave_type == 'sine':
+        max_coefficient = np.max(generate_wave_sequence(
+            wave_type=wave_type,
+            num_waves=num_waves,
+            wave_duration=t_contact,
+            delta_t=delta_t_DEMs,
+            amplitude=amplitude
+        )[1])
+    print('max_coefficient=', max_coefficient)
         
