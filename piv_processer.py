@@ -65,6 +65,7 @@ for i in range(0, len(piv_frames)-piv_interval, piv_interval):
     plt.figure(figsize=(10, 8))
     plt.imshow(frame_a, cmap='rainbow')
     plt.quiver(x, y, u, -v, color='r', scale=50)
+    plt.colorbar()
     plt.title(f"PIV Result Frame {i} -> {i+piv_interval}")
     plt.savefig(os.path.join(output_folder, f"piv_{i:04d}.png"))
     plt.close()
