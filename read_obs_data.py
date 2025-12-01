@@ -76,10 +76,10 @@ mt_st7_2 = "F:\\YaJiang_OBS_data\\MT_101_192_168_11_11\\C-00001_250809\\661207A8
 mt_st7_3 = "F:\\YaJiang_OBS_data\\MT_101_192_168_11_11\\C-00001_250809\\661207A8.160.BHZ"
 mt_st7_4 = "F:\\YaJiang_OBS_data\\MT_101_192_168_11_11\\C-00001_250809\\661207A8.160.HYD"
 
-
+mt_date = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\101\\C-00001_250807\\660E6AC4.158.HYD"
 
 # 选择数据
-st = read(mt_st1_1)
+st = read(mt_date)
 
 # 打印头部信息
 print(st[0].stats)
