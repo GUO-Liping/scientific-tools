@@ -33,7 +33,7 @@ def extract_frames(video_path, output_folder, frame_interval, max_threads):
 
             if frame_count % frame_interval == 0:
                 frame_filename = os.path.join(output_folder, f'frame_{frame_count:04d}.jpg')
-                futures.append(executor.submit(save_frame, frame, frame_filename))
+                futures.append(executor.submit(save_frame, frame[2:823, 202:1066], frame_filename))
                 saved_count += 1
 
                 # 减少频繁打印，仅每100帧输出一次
