@@ -76,10 +76,13 @@ mt_st7_2 = "F:\\YaJiang_OBS_data\\MT_101_192_168_11_11\\C-00001_250809\\661207A8
 mt_st7_3 = "F:\\YaJiang_OBS_data\\MT_101_192_168_11_11\\C-00001_250809\\661207A8.160.BHZ"
 mt_st7_4 = "F:\\YaJiang_OBS_data\\MT_101_192_168_11_11\\C-00001_250809\\661207A8.160.HYD"
 
-mt_date = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\101\\C-00001_250807\\660E6AC4.158.HYD"
+pz_data_BHE = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\102\\C-00002_250630\\65BC1C12.158.BHE"
+pz_data_BHN = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\102\\C-00002_250630\\65BC1C12.158.BHN"
+pz_data_BHZ = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\102\\C-00002_250630\\65BC1C12.158.BHZ"
+pz_data_HYD = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\102\\C-00002_250630\\65BC1C12.158.HYD"
 
 # 选择数据
-st = read(mt_date)
+st = read(pz_data_BHN)
 
 # 打印头部信息
 print(st[0].stats)
@@ -91,12 +94,18 @@ fig.subplots_adjust(top=0.855, bottom=0.2, left=0.1, right=0.95, hspace=0.0, wsp
 
 # 设置时间刻度
 ax = fig.axes[0]
-ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))  # 主刻度：每12小时
-ax.xaxis.set_minor_locator(mdates.HourLocator(interval=1))  # 次刻度：每2小时
+ax.xaxis.set_major_locator(mdates.HourLocator(interval=12))  # 主刻度：每12小时
+ax.xaxis.set_minor_locator(mdates.HourLocator(interval=2))  # 次刻度：每2小时
 ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
 
 fig.autofmt_xdate()
 ax.set_xlabel("Time (UTC)")
 ax.set_ylabel("Amplitude")
+
+# 定义时间窗的开始和结束时间
+start_time = st[0].stats.starttime + 5.999*24*60*60  # 起始时间：10秒
+end_time = st[0].stats.starttime + 6.001*24*60*60    # 结束时间：20秒
+st.trim(starttime=start_time, endtime=end_time)
+st.spectrogram(log=False, title='BW.RJOB ' + str(st[0].stats.starttime))
 
 plt.show()
