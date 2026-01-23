@@ -34,18 +34,18 @@ USE_GPU = True
 MODEL_TYPE = "cyto3"   # 4.0.8 推荐先用 cyto3，不行再试 cyto
 
 # 只保留“超大颗粒”的像素等效直径阈值（px）
-D_EQ_MIN_PX = 180
+D_EQ_MIN_PX = 110
 
 # 如果你要换成更保守/更严格，可修改：
 # D_EQ_MIN_PX = 200
 
 # 预处理（偏大颗粒：更依赖强度/低频对比）
-BG_KERNEL   = 81       # 大块常被背景校正吃掉 → 建议偏小：61/81/101
+BG_KERNEL   = 61       # 大块常被背景校正吃掉 → 建议偏小：61/81/101
 CLAHE_CLIP  = 2.0
 BLUR_K      = 3        # 奇数：3/5
 
 # 只做大尺度 diameter sweep（可按实际图像再扩展）
-DIAM_SWEEP_BIG = [150, 180, 200, 230, 260, 300]
+DIAM_SWEEP_BIG = [150, 210, 300]
 
 # 阈值（漏检多就把 cellprob 调更负；假块太多就把 cellprob 往 0 调）
 CELLPROB_TH = -2.0
