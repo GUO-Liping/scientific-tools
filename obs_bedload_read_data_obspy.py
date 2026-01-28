@@ -83,7 +83,7 @@ mt_st7_4 = "F:\\YaJiang_OBS_data\\MT_101_192_168_11_11\\C-00001_250809\\661207A8
 
 pz_data_BHE = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\102\\C-00002_250630\\65BC1C12.158.BHE"
 pz_data_BHN = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\102\\C-00002_250630\\65BC1C12.158.BHN"
-pz_data_BHZ = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\102\\C-00002_250630\\65BC1C12.158.BHZ"
+pz_data_BHZ = "E:\\雅江OBS数据\\65BC1C12.158.BHZ"
 pz_data_HYD = "E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\102\\C-00002_250630\\65BC1C12.158.HYD"
 
 # 选择数据
@@ -316,5 +316,145 @@ axm.set_xlabel("Time (UTC, minute)")
 axm.set_ylabel(r"Median PSD mean (30–45 Hz) ((m/s)$^2$/Hz)")
 axm.set_title("1-min median PSD (Luong-style, 30–45 Hz)")
 figm.autofmt_xdate()
+
+
+# ==========================================================================================
+# 下一步：扩展到 24 小时（或多天）——按小时循环计算 Luong-style 1-min median PSD 指标
+# 输出：每分钟 PSD_30_45_mean / PSD_30_45_int 的连续时间序列
+# ==========================================================================================
+
+# --------- 你只改这两行 ----------
+t_global_start = UTCDateTime("2025-07-05T03:00:00")  # 起点（UTC）
+n_hours = 24*7                                         # 连续小时数（24=1天；要多天就 24*天数）
+# ---------------------------------
+
+# 预先准备：PAZ 与 pre_filt（对所有小时都一样）
+ADC_S = 1.6777e6
+paz = {
+    "poles": [-30.61, -15.8, -0.1693, -0.09732, -0.03333],
+    "zeros": [0j, 0j, 0j, -30.21, -16.15],
+    "gain": 1021.9,
+    "sensitivity": 1021.9 * ADC_S
+}
+
+# Luong Welch 参数
+nperseg_luong = 2**14
+noverlap_luong = nperseg_luong // 2
+step = nperseg_luong - noverlap_luong
+
+# 频带（受 fs=100Hz 限制）
+fmin, fmax = 10.0, 45.0
+
+all_minutes = []  # 用来存每小时结果（DataFrame）
+
+for ih in range(n_hours):
+    t1 = t_global_start + ih * 3600
+    t2 = t1 + 3600
+
+    # 1) 从原始整段 st 中裁剪出 1 小时（注意：这里 st 还是 counts）
+    st_seg = st.copy()
+    st_seg.trim(t1, t2)
+
+    if len(st_seg) == 0 or st_seg[0].stats.npts < 1000:
+        print(f"[WARN] Empty/too short segment: {t1} - {t2}, skip.")
+        continue
+
+    # 2) 合并/去趋势
+    st_seg.merge(method=1, fill_value="interpolate")
+    st_seg.detrend("linear")
+    st_seg.detrend("demean")
+
+    # 3) 去仪器响应 -> 速度
+    fs = st_seg[0].stats.sampling_rate
+    fN = fs / 2.0
+    pre_filt = (0.2, 0.5, 0.7 * fN, 0.9 * fN)
+
+    for tr in st_seg:
+        tr.simulate(paz_remove=paz, remove_sensitivity=True, pre_filt=pre_filt)
+
+    trv = st_seg[0]
+    x = trv.data.astype(np.float64)
+    x = x - np.mean(x)
+
+    # 如果该小时数据长度不足以做 2^14 Welch，就跳过
+    if len(x) < nperseg_luong:
+        print(f"[WARN] Segment too short for Luong nperseg: {t1} - {t2}, npts={len(x)}")
+        continue
+
+    # 4) 滑动 Welch（2^14, 50% overlap）+ 记录中心时刻
+    nwin = (len(x) - nperseg_luong) // step + 1
+    times_center = np.empty(nwin, dtype="datetime64[ns]")
+    psd_list = []
+
+    t0 = trv.stats.starttime
+
+    for i in range(nwin):
+        i0 = i * step
+        seg = x[i0:i0 + nperseg_luong]
+
+        f_l, Pxx_l = welch(
+            seg, fs=fs, window="hann",
+            nperseg=nperseg_luong, noverlap=0,
+            detrend=False, scaling="density"
+        )
+
+        tc = t0 + (i0 + nperseg_luong / 2) / fs
+        times_center[i] = np.datetime64(tc.datetime)
+        psd_list.append(Pxx_l)
+
+    psd_arr = np.vstack(psd_list)
+
+    # 5) minute median PSD
+    df_psd = pd.DataFrame(psd_arr)
+    df_psd["minute"] = pd.to_datetime(times_center).floor("min")
+    psd_minute = df_psd.groupby("minute").median()
+    psd_minute.index.name = "minute_utc"
+
+    # 6) 30–45 Hz 指标
+    idx = (f_l >= fmin) & (f_l <= fmax)
+    cols = np.where(idx)[0]
+
+    out_minute = pd.DataFrame({
+        "PSD_30_45_mean": psd_minute.iloc[:, cols].mean(axis=1),
+        "PSD_30_45_int":  psd_minute.iloc[:, cols].apply(lambda row: np.trapezoid(row.values, f_l[idx]), axis=1)
+    })
+    out_minute.index.name = "minute_utc"
+
+    all_minutes.append(out_minute)
+
+    print(f"[INFO] {t1} - {t2}: minutes={out_minute.shape[0]} (saved in memory)")
+
+# 7) 合并所有小时结果并保存
+if len(all_minutes) > 0:
+    out_all = pd.concat(all_minutes).sort_index()
+
+    # 去重：如果相邻小时因为窗口中心落点导致分钟重复，取 median（或 mean 都行）
+    out_all = out_all.groupby(out_all.index).median()
+    # ✅ 关键：重采样成严格 1-min
+    out_all_1min = out_all.resample("1min").median()
+
+    # 保存 Luong-style minute（不严格 60s）
+    out_all.to_csv("PSD_LuongMinute_PSD30_45Hz.csv")
+    
+    # 保存严格 1-min（工程/水文对齐）
+    out_all_1min.to_csv("PSD_1min_PSD30_45Hz.csv")
+    
+    print("[INFO] Luong-minute points:", out_all.shape[0])
+    print("[INFO] Strict 1-min points:", out_all_1min.shape[0])
+
+    print("[INFO] Total minutes:", out_all.shape[0])
+    print("[INFO] minute PSD is defined by Welch-window center time (not strict 60s bins)")
+
+    # 可选：快速画一下
+    fig_all, ax_all = plt.subplots(figsize=(12, 3))
+    ax_all.plot(out_all_1min.index, out_all_1min["PSD_30_45_mean"])
+    ax_all.set_yscale("log")
+    ax_all.set_xlabel("Time (UTC, minute)")
+    ax_all.set_ylabel(r"Median PSD mean (30–45 Hz) ((m/s)$^2$/Hz)")
+    ax_all.set_title("Luong-style 1-min median PSD (30–45 Hz), 24h")
+    fig_all.autofmt_xdate()
+    plt.show()
+else:
+    print("[WARN] No valid hourly segments processed.")
 
 plt.show()
