@@ -18,6 +18,6 @@ model = SaltationModel()
 psd = model.forward_psd(f, D, H, W, theta, r0, qb, D50 = D50, pdf = pD)
 
 # Inverting  bedload flux
-PSD_obs = np.loadtxt("data/pinos/PSD.txt")
-H = np.loadtxt("data/pinos/flowdepth.txt")
+PSD_obs = np.loadtxt("PSD.txt")
+H = np.loadtxt("flowdepth.txt")
 bedload_flux = model.inverse_bedload(PSD_obs, f, D, H, W, theta, r0, qb, D50=D50, tau_c50=tau_c50, pdf = pD)
