@@ -36,12 +36,12 @@ from seismic_bedload.utils import log_raised_cosine_pdf
 
 
 # =============================================================================
-# 0) USER CONFIG (edit here)
+# 0) 用户配置
 # =============================================================================
 
 # ---- Input BHZ SAC file ----
-#DATA_FILE = r"E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\101MT\\C-00001_250618\\65A42E04.15A.BHZ"
-DATA_FILE = r"E:\\雅江OBS数据\\65A42E04.15A.BHZ"
+DATA_FILE = r"E:\\项目3-YJ项目-推移质监测\\雅江YaJiang-推移质OBS监测数据\\101MT\\C-00001_250618\\65A42E04.15A.BHZ"
+#DATA_FILE = r"E:\\雅江OBS数据\\65A42E04.15A.BHZ"
 
 # ---- Water level/depth series ----
 # 水位过程
@@ -87,7 +87,7 @@ OUT_CSV_QB_1MIN      = "BedloadFlux_qb_Strict1min.csv"
 
 
 # =============================================================================
-# 1) Helpers (procedural)
+# 1) 自定义函数
 # =============================================================================
 
 def detrend_demean_stream(st_in):
@@ -193,7 +193,7 @@ def safe_db(psd_linear, floor=1e-30):
 
 
 # =============================================================================
-# 2) Read data + determine processing range
+# 2) 数据读取及预处理
 # =============================================================================
 
 st = read(DATA_FILE)
@@ -228,7 +228,7 @@ if T_GLOBAL_START < tr_full.stats.starttime or T_GLOBAL_END > tr_full.stats.endt
 
 
 # =============================================================================
-# 3) Main loop: hourly processing
+# 3) 主循环：逐小时数据处理
 # =============================================================================
 
 all_minutes_band = []
@@ -288,7 +288,7 @@ if len(all_minutes_band) == 0:
 
 
 # =============================================================================
-# 4) Merge + export PSD products
+# 4) 合并数据，求解PSD
 # =============================================================================
 
 out_band = pd.concat(all_minutes_band).sort_index()
@@ -309,14 +309,13 @@ psd_all_1min_plot = psd_all_1min.interpolate(limit=10, limit_direction="both")
 
 
 # =============================================================================
-# 5) River depth align to PSD minute grid (strict 1-min)
+# 5) 流深数据与PSD时间网格对齐（严格1分钟）
 # =============================================================================
 
 river_on_minute = align_river_to_minutes(psd_all_1min.index, time_river, deepth_river)
 
-
 # =============================================================================
-# 6) Bedload flux inversion (seismic_bedload SaltationModel)
+# 6) 推移质反演 (seismic_bedload SaltationModel)
 # =============================================================================
 # IMPORTANT:
 # - The model expects PSD_obs in dB (it converts back internally by 10**(dB/10)).
@@ -362,7 +361,6 @@ rho_s = 2650.0  # 推移质密度kg/m3
 qb0 = 10/rho_s  # 初始猜测的床载输沙率（m²/s）
 tau_c50 = 0.045  # 对 D50 颗粒的临界无量纲切应力，越大 → 越难起动
 
-
 model = SaltationModel()
 
 qb_use = model.inverse_bedload(
@@ -402,8 +400,11 @@ P_db_show = P_db[freq_mask_show, :]
 f_show_use = f_show[freq_mask_show]
 
 # Robust color scale by percentiles (avoid huge colorbar range)
-vmin = np.nanpercentile(P_db_show, 5)
-vmax = np.nanpercentile(P_db_show, 95)
+#vmin = np.nanpercentile(P_db_show, 5)
+#vmax = np.nanpercentile(P_db_show, 95)
+
+vmin = -225
+vmax = -200
 
 times = psd_all_1min_plot.index.to_pydatetime()
 t0_num = mdates.date2num(times[0])
