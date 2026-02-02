@@ -23,7 +23,7 @@ Notes
 - For strict 1-min alignment (hydrology/engineering), we resample("1min").
 """
 
-from obspy import read, UTCDateTime
+from obspy import read, UTCDateTime, Stream
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -51,8 +51,8 @@ time_river = pd.to_datetime(time_river_str, utc=True)  # 统一 UTC（与你 PSD
 deepth_river = height_river - 710.6  # 单位：m
 
 # ---- Processing time range (UTC) ----
-USE_AUTO_TIME_RANGE = True
-T_GLOBAL_START = None
+USE_AUTO_TIME_RANGE = True  # False
+T_GLOBAL_START =  UTCDateTime("2025-06-18T03:00:00")
 N_HOURS = 24 * 1
 
 # ---- Band index frequency range (for proxy display) ----
@@ -192,6 +192,44 @@ def safe_db(psd_linear, floor=1e-30):
     return 10.0 * np.log10(psd_linear)
 
 
+def quick_plot_full_trace_minmax(tr, max_bins=200_000, title="Full trace (min-max quicklook)"):
+    """
+    Fast overview using min-max per bin (preserves spikes).
+    max_bins: number of bins along time axis (each bin contributes 2 points).
+    """
+    x = np.asarray(tr.data)
+    n = x.size
+    if n == 0:
+        print("[WARN] Empty trace.")
+        return
+
+    # each bin -> 2 points (min,max), so bins ~ max_bins
+    bin_size = max(1, n // max_bins)
+    nb = n // bin_size
+
+    x2 = x[:nb * bin_size].reshape(nb, bin_size)
+    xmin = np.nanmin(x2, axis=1)
+    xmax = np.nanmax(x2, axis=1)
+
+    # interleave min/max to draw envelope
+    y = np.empty(nb * 2, dtype=float)
+    y[0::2] = xmin
+    y[1::2] = xmax
+
+    fs = tr.stats.sampling_rate
+    t = (np.arange(nb) * bin_size) / fs / 3600.0
+    t2 = np.repeat(t, 2)
+
+    plt.figure(figsize=(14, 4))
+    plt.plot(t2, y, linewidth=0.6)
+    plt.xlabel("Time (hours from start)")
+    plt.ylabel("Amplitude")
+    plt.title(f"{title} | n={n}, bin_size={bin_size}, bins={nb}, plotted={y.size}")
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    
+
+
 # =============================================================================
 # 2) 数据读取及预处理
 # =============================================================================
@@ -226,7 +264,36 @@ if T_GLOBAL_START < tr_full.stats.starttime or T_GLOBAL_END > tr_full.stats.endt
         f"Req : {T_GLOBAL_START} ~ {T_GLOBAL_END}"
     )
 
+# quick look full data
+'''
+# raw
+tr_raw_all = st[0].copy()
 
+# detrend + demean (Stream → Stream)
+st_det_all = detrend_demean_stream(st.copy())
+tr_det_all = st_det_all[0]
+
+# remove response (Stream → Stream)
+st_vel_all, _ = remove_response_to_velocity(st_det_all, PAZ)
+tr_vel_all = st_vel_all[0]
+
+st_qc = Stream([tr_raw_all.copy(),tr_det_all.copy(),tr_vel_all.copy()])
+
+# rename channels for display
+#st_qc[0].stats.channel = "RAW"
+#st_qc[1].stats.channel = "VEL"
+#st_qc[2].stats.channel = "DETREND"
+
+st_qc.plot(
+    equal_scale=False,
+    type="normal",
+    linewidth=0.6,
+    size=(1400, 500),
+    tick_format="%m-%d",
+    title="OBS waveform QC: raw / detrended / velocity",
+)
+
+'''
 # =============================================================================
 # 3) 主循环：逐小时数据处理
 # =============================================================================
@@ -400,11 +467,11 @@ P_db_show = P_db[freq_mask_show, :]
 f_show_use = f_show[freq_mask_show]
 
 # Robust color scale by percentiles (avoid huge colorbar range)
-#vmin = np.nanpercentile(P_db_show, 5)
-#vmax = np.nanpercentile(P_db_show, 95)
+vmin = np.nanpercentile(P_db_show, 5)
+vmax = np.nanpercentile(P_db_show, 95)
 
-vmin = -225
-vmax = -200
+#vmin = -225
+#vmax = -200
 
 times = psd_all_1min_plot.index.to_pydatetime()
 t0_num = mdates.date2num(times[0])
@@ -438,7 +505,7 @@ ax_river = ax_hm.twinx()
 ax_river.plot(psd_all_1min.index, river_on_minute.values, color="black", linewidth=2.0, label="River depth", zorder=10)
 ax_river.set_ylabel("River depth (m)", color="black")
 ax_river.tick_params(axis="y", labelcolor="black")
-ax_river.legend(loc="upper right", frameon=False)
+ax_river.legend(loc="upper left", frameon=False)
 
 plt.tight_layout()
 
