@@ -432,8 +432,8 @@ if __name__ == '__main__':
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.003/2*np.ones(case_number)
-    radius_max = 0.003/2*np.ones(case_number)
+    radius_min = 0.01/2*np.ones(case_number)
+    radius_max = 0.01/2*np.ones(case_number)
 
     ratio_solid = 0.64 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
@@ -469,6 +469,7 @@ if __name__ == '__main__':
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
     #print('[Thornton Elasto-Plastic Theory]: ')
     v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, dist_type)
+    print('v_y=',v_y)
     #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
     flow_time = np.ones_like(E_Fmax)  # s
