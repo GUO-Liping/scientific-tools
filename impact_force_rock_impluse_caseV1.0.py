@@ -149,8 +149,12 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
 
     # 计算塑性碰撞结果
     velocity_y = np.sqrt(np.pi**4/40) * (sigma_y**5 / (dem_density * modulus_eq**4))**0.5  # np.sqrt(np.pi**4/40)=1.560521475613219791
+    velocity_y2 = (np.pi/(2*modulus_star))**2 * (8*np.pi*radius_star**3 / (15*mass_star))**(1/2) * sigma_y**(5/2)
 
     const_F_plastic = np.sqrt((sigma_y**3*np.pi**3/(6*modulus_eq**2))**2 + np.pi**2*sigma_y*4/3*dem_density*(dem_velocity**2-velocity_y**2))
+
+    print('velocity_y=',velocity_y)
+    print('velocity_y2=',velocity_y2)
     F_single_min_plastic = const_F_plastic * radius_min**2
     F_single_max_plastic = const_F_plastic * radius_max**2
     #E_Fmax_elastic = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
@@ -413,80 +417,50 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
 
 if __name__ == '__main__':
     # 参数定义
-
-    # This study
     case_number = 1
-    #DEM_Volumn = 0.1 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
+    DEM_velocity = 4.85 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_density = 7850 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
+    DEM_modulus = 210e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
+    DEM_miu = 0.30 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_strength = 235e6 * np.ones(case_number)     # 花岗岩强度 Pa
+    DEM_radius = 0.09*np.ones(case_number)
 
-    #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
-    #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 2.2 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
-    DEM_depth = 0.026 * np.ones(case_number)  # compute_DEM_depth(DEM_Volumn), This function is for Yaoheba Rock Avalanche only.
-    DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
-    DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
-    DEM_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
+    Pier_velocity = 0 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    Pier_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
+    Pier_modulus = 30e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
+    Pier_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    Pier_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
+    Pier_radius = np.inf*np.ones(case_number)
 
-    # c_radius = np.array([0.45,0.75,1.05])
-    # r_radius = np.array([0.01,0.05,0.15])
-    # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
-    # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.01/2*np.ones(case_number)
-    radius_max = 0.01/2*np.ones(case_number)
-
-    ratio_solid = 0.64 * np.ones(case_number) # 固相体积分数0.61-0.68
-    impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
-    wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
-    dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
-
-
-    # Pier_shape = 'square', 'round'
-    Pier_shape = 'square'
-    Pier_width = 0.2 * np.ones(case_number)        # m
-    Pier_modulus = 3.0e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
-    Pier_miu = 0.3 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
-    Pier_strength = 30e6 * np.ones(case_number)          # Pa C30混凝土强度:30 MPa
-    
-    # 调整半径
-    radius_min, radius_max = adjust_radius(radius_min, radius_max)
-    DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
-
-    sigma_y = np.minimum(DEM_strength, Pier_strength)
 
     # 计算冲击时间
-    t_contact_elastic, t_contact_elastoplastic = compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
-    #print('t_contact_elastic =', np.round(t_contact_elastic,9), 's')
-    #print('t_contact_elastoplastic =', np.round(t_contact_elastoplastic,9), 's')
+    #t_contact_elastic, t_contact_elastoplastic = compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
 
     # 计算等效弹性模量
-    modulus_equ = 1 / ((1-Pier_miu**2) / Pier_modulus + (1-DEM_miu**2) / DEM_modulus)
+    modulus_eq = 1 / ((1-Pier_miu**2) / Pier_modulus + (1-DEM_miu**2) / DEM_modulus)
+    radius_eq =  1 / (1 / Pier_radius + 1 / DEM_radius)
+    mass_eq =  1 / (1 / Pier_modulus + 1 / DEM_modulus)
+    velocity_eq = np.abs(DEM_velocity-Pier_velocity)
+    sigma_y = np.minimum(DEM_strength, Pier_strength)
 
     # Hertz弹性接触理论计算冲击力（接触力）
-    force_min, force_max, force_equ, force_average = compute_Hertz_contact_forces(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity)
+    velocity_y = (np.pi/(2*modulus_eq))**2 * (8*np.pi*radius_eq**3 / (15*mass_eq))**(1/2) * sigma_y**(5/2)
+    print('velocity_y=', velocity_y*1000)
+
+
+    force_Hertz = (4/3) * modulus_eq**(2/5) * (5*np.pi/4)**(3/5) * DEM_density**(3/5) * DEM_velocity**(6/5)
+    force_Hertz2 = (4/3) * modulus_eq**(2/5) * radius_eq**(1/5) * mass_eq**(3/5) * velocity_eq**(5/6) * (15/16)**(3/5)
+    print('force_Hertz=', force_Hertz2)
+
+    force_min, force_max, force_equ, force_average = compute_Hertz_contact_forces(DEM_radius, modulus_equ, DEM_density, DEM_velocity)
     #print('[Hertz Elastic Theory]: ', '\n\tF_min=', np.round(force_min/1000,3), '\n\tF_max=',np.round(force_max/1000,3),'\n\tF_average=',np.round(force_average/1000,3),'kN')
 
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
     #print('[Thornton Elasto-Plastic Theory]: ')
     v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, dist_type)
-    print('v_y=',v_y)
     #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
-    flow_time = np.ones_like(E_Fmax)  # s
-    flow_volume_total = DEM_volume_flux * flow_time
-    radius_avg = np.sqrt((radius_max**2 + radius_max*radius_min + radius_min**2)/3)
-    DEM_impact_rate = np.round(ratio_solid * flow_volume_total / (4/3 * np.pi * (radius_avg**3 )))
-    delta_t_DEMs = flow_time / DEM_impact_rate
-    num_waves = np.maximum(np.ceil(t_contact_elastoplastic / delta_t_DEMs), 1).astype(int)
-
     # 碰撞过程时间离散性和总冲击力
-
-    gamma_space = compute_gamma_space(Pier_shape)
-    gamma_time  = compute_gamma_time(wave_type,t_contact_elastoplastic,delta_t_DEMs)
-    angle_impact = np.sin(np.radians(impact_angle_deg))
-
-    total_force = gamma_time * gamma_space * angle_impact * E_Fmax
-
     print('DEM_impact_rate=',  np.array2string(DEM_impact_rate,              separator=', ', precision=1), 's^{-1}')
     #print('DEM_Volumn    =',   np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
     print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=3), 'm')      
