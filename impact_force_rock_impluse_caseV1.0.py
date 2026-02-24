@@ -477,7 +477,9 @@ if __name__ == '__main__':
     force_Thorn1 = np.sqrt(force_y**2 + np.pi*sigma_y*DEM_mass * (DEM_velocity**2 - velocity_y**2) * radius_eq)
     force_Thorn = np.sqrt(force_y**2 + np.pi*sigma_y*(DEM_density*4/3*np.pi*DEM_radius**3) * (DEM_velocity**2 - velocity_y**2) * radius_eq)
 
-    print('velocity_y_thorn=', velocity_y_thorn, velocity_y_thorn2)
+    # 恢复系数e_rebond
+    e_coeff = velocity_y / DEM_velocity
+    e_rebond = (6 * 3**(1/2) / 5)**(1/2) * (1-1/6 * e_coeff**2)**(1/2) * (e_coeff/(e_coeff + 2*(6/5 - 1/5*e_coeff**2)**(1/2)))**(1/4)
 
     print('DEM_mass      =',   np.array2string(DEM_mass,                     separator=', ', precision=6), 'kg')      
     print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=6), 'm/s')      
@@ -488,3 +490,4 @@ if __name__ == '__main__':
     print('force_Hertz1  =',   np.array2string(force_Hertz1,                 separator=', ', precision=6), 'N') 
     print('force_Thorn   =',   np.array2string(force_Thorn,                  separator=', ', precision=6), 'N') 
     print('force_Thorn1  =',   np.array2string(force_Thorn1,                 separator=', ', precision=6), 'N') 
+    print('e_rebond  =',       np.array2string(e_rebond,                     separator=', ', precision=3), ' ') 
