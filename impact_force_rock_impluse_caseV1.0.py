@@ -416,142 +416,75 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
 
 
 if __name__ == '__main__':
-    # 参数定义
+    '''
+    # 参数定义: Fujikake K, Li B, Soeun S (2009) https://doi.org/10.1061/(ASCE)ST.1943-541X.0000039
     case_number = 1
     DEM_velocity = 4.85 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
-    DEM_density = 7850 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 210e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.30 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 235e6 * np.ones(case_number)     # 花岗岩强度 Pa
     DEM_radius = 0.09*np.ones(case_number)
+    DEM_density = 400/(4/3*np.pi*DEM_radius**3)      # kg/m3  花岗岩密度2500kg/m3
+    DEM_mass = DEM_density * 4/3*np.pi* DEM_radius**3
 
     Pier_velocity = 0 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
     Pier_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
+    Pier_modulus = 100e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
+    Pier_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    Pier_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
+    Pier_radius = np.inf*np.ones(case_number)
+    '''
+
+    # 参数定义: Majeed ZZA, Lam NTK, Lam C, et al (2019) https://doi.org/10.1016/j.ijimpeng.2019.103324
+    case_number = 3
+    DEM_velocity = np.array([2.2, 3.8, 5.4])  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_modulus = 50e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
+    DEM_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_strength = 60e6 * np.ones(case_number)     # 花岗岩强度 Pa
+    DEM_radius = 0.05*np.ones(case_number)
+    DEM_density = 1.4/(4/3*np.pi*DEM_radius**3)      # kg/m3  花岗岩密度2500kg/m3
+    DEM_mass = DEM_density * 4/3*np.pi* DEM_radius**3
+
+    Pier_velocity = 0 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    Pier_density = 2750 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     Pier_modulus = 30e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     Pier_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     Pier_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
     Pier_radius = np.inf*np.ones(case_number)
-
 
     # 计算冲击时间
     #t_contact_elastic, t_contact_elastoplastic = compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
 
     # 计算等效弹性模量
     modulus_eq = 1 / ((1-Pier_miu**2) / Pier_modulus + (1-DEM_miu**2) / DEM_modulus)
-    radius_eq =  1 / (1 / Pier_radius + 1 / DEM_radius)
-    mass_eq =  1 / (1 / Pier_modulus + 1 / DEM_modulus)
-    velocity_eq = np.abs(DEM_velocity-Pier_velocity)
+    radius_eq =  1 / (1 / DEM_radius + 1 / Pier_radius)
+
+    # 计算屈服条件
     sigma_y = np.minimum(DEM_strength, Pier_strength)
+    velocity_y1 = (np.pi/(2*modulus_eq))**2 * (8*np.pi*radius_eq**3 / (15*DEM_mass))**(1/2) * sigma_y**(5/2)
+    velocity_y = 3.194 * (1/modulus_eq)**2 * (radius_eq**3 / DEM_mass)**(1/2) * sigma_y**(5/2)
+    velocity_y_thorn = (np.pi/(2*modulus_eq))**2 * (2/(5*DEM_density))**(1/2) * sigma_y**(5/2)
+    velocity_y_thorn2 = 1.56 * (sigma_y**5 / (modulus_eq**4 * DEM_density))**(1/2)
+
+    force_y = sigma_y**3 * np.pi**3 * radius_eq**2 / (6 * modulus_eq**2)
+    delta_y = sigma_y**2 * np.pi**2 * radius_eq / (4*modulus_eq**2)
 
     # Hertz弹性接触理论计算冲击力（接触力）
-    velocity_y = (np.pi/(2*modulus_eq))**2 * (8*np.pi*radius_eq**3 / (15*mass_eq))**(1/2) * sigma_y**(5/2)
-    print('velocity_y=', velocity_y*1000)
-
-
-    force_Hertz = (4/3) * modulus_eq**(2/5) * (5*np.pi/4)**(3/5) * DEM_density**(3/5) * DEM_velocity**(6/5)
-    force_Hertz2 = (4/3) * modulus_eq**(2/5) * radius_eq**(1/5) * mass_eq**(3/5) * velocity_eq**(5/6) * (15/16)**(3/5)
-    print('force_Hertz=', force_Hertz2)
-
-    force_min, force_max, force_equ, force_average = compute_Hertz_contact_forces(DEM_radius, modulus_equ, DEM_density, DEM_velocity)
-    #print('[Hertz Elastic Theory]: ', '\n\tF_min=', np.round(force_min/1000,3), '\n\tF_max=',np.round(force_max/1000,3),'\n\tF_average=',np.round(force_average/1000,3),'kN')
+    force_Hertz1 = (4/3) * modulus_eq**(2/5) * radius_eq**(1/5) * DEM_mass**(3/5) * DEM_velocity**(6/5) * (15/16)**(3/5)
+    force_Hertz = (4/3) * modulus_eq**(2/5) * (5*np.pi/4)**(3/5) * DEM_density**(3/5) * DEM_velocity**(6/5) * DEM_radius**2
 
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
-    #print('[Thornton Elasto-Plastic Theory]: ')
-    v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, dist_type)
-    #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
+    force_Thorn1 = np.sqrt(force_y**2 + np.pi*sigma_y*DEM_mass * (DEM_velocity**2 - velocity_y**2) * radius_eq)
+    force_Thorn = np.sqrt(force_y**2 + np.pi*sigma_y*(DEM_density*4/3*np.pi*DEM_radius**3) * (DEM_velocity**2 - velocity_y**2) * radius_eq)
 
-    # 碰撞过程时间离散性和总冲击力
-    print('DEM_impact_rate=',  np.array2string(DEM_impact_rate,              separator=', ', precision=1), 's^{-1}')
-    #print('DEM_Volumn    =',   np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
-    print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=3), 'm')      
-    print('ratio_solid   =',   np.array2string(ratio_solid,                  separator=', ', precision=2), ' ')      
-    print('DEM_volume_flux =', np.array2string(DEM_volume_flux,              separator=', ', precision=1), 'm^3/s')      
-    print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' ')      
-    print('delta_t_DEMs  =',   np.array2string(delta_t_DEMs*1000,            separator=', ', precision=3), 'ms')      
-    print('t_contact     =',   np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=3), 'ms')      
-    print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s')      
-    print('radius_min    =',   np.array2string(radius_min*1000,              separator=', ', precision=1), 'mm')      
-    print('radius_max    =',   np.array2string(radius_max*1000,              separator=', ', precision=1), 'mm')      
-    print('F_min         =',   np.array2string(F_min/1.000,                  separator=', ', precision=2), 'N')      
-    print('F_max         =',   np.array2string(F_max/1.000,                  separator=', ', precision=2), 'N')      
-    print('E_Fmax        =',   np.array2string(E_Fmax/1.000,                 separator=', ', precision=2), 'N')      
-    print('total_force   =',   np.array2string(total_force/1.000,            separator=', ', precision=2), 'N')
+    print('velocity_y_thorn=', velocity_y_thorn, velocity_y_thorn2)
 
-    plt.show()
-
-
-    ''' 
-    # Choi et al. 2020参数
-    DEM_velocity = 1.8      # m/s
-    DEM_depth = 0.031       # m
-    DEM_density = 2500      # kg/m3  玻璃密度2500kg/m3
-    DEM_modulus = 55e9      # Pa  玻璃弹性模量55GPa
-    DEM_miu = 0.25          # Poisson's ratio  玻璃泊松比0.25
-    radius_min = 10.0e-3/2   # m
-    radius_max = 10.0e-3/2   # m
-    ratio_solid = np.pi/6.0 # 固相体积分数np.pi/6.0
-    impact_angle_deg = 90   # 冲击角度 °
-
-    Pier_shape = 'square'
-    # Pier_shape = 'round'
-    Pier_width = 0.2        # m
-    Pier_modulus = 3.0e9    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
-    Pier_miu = 0.3          # Poisson's ratio 
-    sigma_y = 50e6          # Pa PMMA:50 - 77 MPa
-    
-
-    # Barbara et al. 2010 参数
-    DEM_density = 1530      # kg/m3
-    DEM_depth = 0.025       # m
-    DEM_modulus = 30e9      # Pa
-    DEM_miu = 0.30          # Poisson's ratio
-    DEM_velocity = 2.9      # m/s
-    radius_min = 0.3e-3/2   # m
-    radius_max = 6.0e-3/2   # m
-    ratio_solid = 0.4 #np.pi/6.0 # 固相体积分数
-    impact_angle_deg = 51   # 冲击角度 °
-
-    #Pier_shape = 'square'
-    Pier_shape = 'round'
-    Pier_width = 0.025      # m
-    Pier_modulus = 4.0e9    # Pa PVC:2.4GPa - 4.1GPa
-    Pier_miu = 0.3          # Poisson's ratio PVC:0.38
-    sigma_y = 40e6          # Pa PVC:40 - 44 MPa
-    
-
-    # Zhong et al. 2022 参数
-    DEM_density = 1550      # kg/m3
-    DEM_depth = 0.8         # m
-    DEM_modulus = 30e9      # Pa
-    DEM_miu = 0.30          # Poisson's ratio
-    DEM_velocity = 28.23    # m/s
-    radius_min = 0.1        # m
-    radius_max = 0.2        # m
-    ratio_solid = np.pi/6.0 # 固相体积分数
-    impact_angle_deg = 60   # 冲击角度 °
-
-    #Pier_shape = 'square'
-    Pier_shape = 'round'
-    Pier_width = 1.8        # m
-    Pier_modulus = 32.5e9   # Pa 30GPa - 32.5GPa
-    Pier_miu = 0.3          # Poisson's ratio
-    sigma_y = 40e6          # Pa
-
-    # Wang et al. 2025 参数
-    DEM_density = 2550      # kg/m3
-    DEM_depth = 0.05        # m
-    DEM_modulus = 60e9      # Pa
-    DEM_miu = 0.25          # Poisson’s ratio
-    DEM_velocity = 1.6      # m/s
-    radius_min = 4.0e-3     # m
-    radius_max = 4.0e-3     # m
-    ratio_solid = 0.45      # 固相体积分数
-    impact_angle_deg = 72   # 冲击角度 °
-
-    #Pier_shape = 'square'
-    Pier_shape = 'round'
-    Pier_width = 0.1
-    Pier_modulus = 3.2e9    # Pa
-    Pier_miu = 0.35         # Poisson’s ratio
-    sigma_y = 30e6          # Pa
-    '''
+    print('DEM_mass      =',   np.array2string(DEM_mass,                     separator=', ', precision=6), 'kg')      
+    print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=6), 'm/s')      
+    print('velocity_y    =',   np.array2string(velocity_y*1000,              separator=', ', precision=6), 'mm/s')      
+    print('force_y       =',   np.array2string(force_y,                      separator=', ', precision=6), 'N')      
+    print('delta_y       =',   np.array2string(delta_y*1000,                 separator=', ', precision=6), 'mm') 
+    print('force_Hertz   =',   np.array2string(force_Hertz,                  separator=', ', precision=6), 'N') 
+    print('force_Hertz1  =',   np.array2string(force_Hertz1,                 separator=', ', precision=6), 'N') 
+    print('force_Thorn   =',   np.array2string(force_Thorn,                  separator=', ', precision=6), 'N') 
+    print('force_Thorn1  =',   np.array2string(force_Thorn1,                 separator=', ', precision=6), 'N') 
