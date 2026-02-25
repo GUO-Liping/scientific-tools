@@ -80,8 +80,21 @@ if __name__ == '__main__':
     force_Thorn0 = np.sqrt(force_y_JG**2 + np.pi*sigma_y*(DEM_density*4/3*np.pi*DEM_radius**3) * (velocity_eq**2 - velocity_y_JG**2) * radius_eq)
 
     # 恢复系数e_rebond
-    c1 = velocity_y_JG / velocity_eq
-    coeff_r = (6 * 3**(1/2) / 5)**(1/2) * (1-1/6 * c1**2)**(1/2) * (c1/(c1 + 2*(6/5 - 1/5*c1**2)**(1/2)))**(1/4)
+    c1 = velocity_y_Th / velocity_eq
+    coeff_Th = (6 * 3**(1/2) / 5)**(1/2) * (1-1/6 * c1**2)**(1/2) * (c1/(c1 + 2*(6/5 - 1/5*c1**2)**(1/2)))**(1/4)
+
+    # A Finite Element Study of Elasto-Plastic Hemispherical Contact Against a Rigid Flat
+    V1_star_JG = velocity_eq/velocity_y_JG
+    print('V1_star_JG=', V1_star_JG)
+    epsilon_y_JG = sigma_y / modulus_eq
+    print('V1_star_JG=', V1_star_JG, epsilon_y_JG)
+    coeff_JG = 1-0.0361*(epsilon_y_JG**(-0.114)) * np.log(V1_star_JG) * (V1_star_JG-1)**(9.5*epsilon_y_JG)
+
+    coeff_Th2 = 1.185 * (velocity_y_Th / velocity_eq)**(1/4)
+    print('coeff_Th2=', coeff_Th2)
+
+    coeff_Wu = 0.62 * ((velocity_eq / velocity_y_Th)/(modulus_eq/sigma_y))**(-1/2)
+    print('coeff_Wu=', coeff_Wu)
 
     print('DEM_mass      =',   np.array2string(DEM_mass,                     separator=', ', precision=6), 'kg')      
     print('velocity_eq   =',   np.array2string(velocity_eq,                  separator=', ', precision=6), 'm/s')      
@@ -94,4 +107,5 @@ if __name__ == '__main__':
     print('force_Hertz0  =',   np.array2string(force_Hertz0/1000,            separator=', ', precision=6), 'kN') 
     print('force_Thorn   =',   np.array2string(force_Thorn/1000,             separator=', ', precision=6), 'kN') 
     print('force_Thorn0  =',   np.array2string(force_Thorn0/1000,            separator=', ', precision=6), 'kN') 
-    print('coeff_r  =',        np.array2string(coeff_r,                      separator=', ', precision=3), ' ') 
+    print('coeff_Th      =',   np.array2string(coeff_Th,                     separator=', ', precision=3), ' ') 
+    print('coeff_JG      =',   np.array2string(coeff_JG,                     separator=', ', precision=3), ' ') 
