@@ -14,407 +14,6 @@ plt.rcParams['font.sans-serif'] = ['SimHei']  # 使用 SimHei 字体
 plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 
-def adjust_radius(radius_min, radius_max):
-    """如果半径上下限相等，则微调radius_max，防止除零错误。"""
-    # 转为numpy数组，方便处理
-    radius_min = np.array(radius_min, dtype=float)
-    radius_max = np.array(radius_max, dtype=float)
-
-    # 找出相等的位置
-    mask_equal = (radius_min == radius_max)
-
-    # 微调
-    radius_min[mask_equal] -= 1e-5
-    radius_max[mask_equal] += 1e-5
-
-    return radius_min, radius_max
-
-
-def compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y):
-    # Johnson弹塑性碰撞时长
-    sigma_yd = 1.0 * sigma_y  # pd/pm = 1.28 for steel material
-    p_d = 3.0 * sigma_yd
-    modulus_star = 1/((1-DEM_miu**2)/DEM_modulus + (1-Pier_miu**2)/Pier_modulus)
-    radius_star = DEM_radius
-    mass_star = DEM_density * 4/3 * np.pi * radius_star**3
-    velocity_relative = DEM_velocity
-
-    coeff1 = 3 * np.pi**(5/4) * 4**(3/4) / 10
-    coeff2 = p_d / modulus_star
-    coeff3 = (1/2 * mass_star * velocity_relative**2 / (p_d * radius_star**3))**(-1/4)
-    coeff_re = np.sqrt(coeff1 * coeff2 * coeff3)
-
-    coeff_re = np.minimum(coeff_re, 1.0)
-
-    # 当速度比较小时，采用下式coeff_re2计算的恢复系数大于1，且与coeff_re相差较大，这说明使用p_d≈3.0σy不准确，故不采用
-    # coeff_re2 = 3.7432822830305064 * np.sqrt(sigma_yd/modulus_star) * ((1/2*mass_star*velocity_relative**2)/(sigma_yd*radius_star**3))**(-1/8)
-
-    def integrand(x):
-        return 1 / np.sqrt(1 - x**(5/2))
-    
-    int_result, int_error = quad(integrand, 0, 1)
-
-    delta_z_star = ((15*mass_star*velocity_relative**2) / (16*np.sqrt(radius_star)*modulus_star))**(2/5)
-    t_elastic_origin = 2 * (delta_z_star/velocity_relative) * int_result
-
-    # eq.(11.24), 本程序采用该式  
-    t_elastic = 2.868265699194853 * (mass_star**2 / (radius_star*modulus_star**2 * (coeff_re*velocity_relative)))**(1/5)
-    t_plastic = np.sqrt((np.pi * mass_star) / (8*radius_star*p_d))
-    
-    t_elastic_eq11_47 = 1.2 * coeff_re * t_plastic  # eq.(11.47)
-
-    t_elastoplastic = t_elastic + t_plastic
-    return t_elastic, t_elastoplastic
-
-def compute_effective_volume_flux(pier_width, DEM_depth, radius_max, DEM_velocity):
-    """计算桥墩有效宽度，根据截面形状调整。"""
-    pier_width_effect = pier_width + 2 * radius_max
-    DEM_depth_effect = DEM_depth
-    effective_volume_flux = pier_width_effect * DEM_depth_effect * DEM_velocity
-    
-    return effective_volume_flux
-
-def compute_DEM_depth(x_query):
-    """
-    查询给定 x_query 对应的平滑拟合值。
-    曲线特点：先上升后平缓，右端趋于18。
-    内部自动完成拟合和绘图。
-    """
-    # 原始数据
-    x_data = np.array([1000, 2000, 4000, 8000, 16000])
-    y_data = np.array([3.2, 6.4, 12.8, 16.0, 18.0])
-
-    # 指数饱和模型： y = a - b * exp(-c * x)
-    def exp_saturate(x, a, b, c):
-        return a - b * np.exp(-c * x)
-
-    # 初始猜测参数
-    p0 = [max(y_data), max(y_data)-min(y_data), 1e-4]
-
-    # 曲线拟合
-    popt, _ = curve_fit(exp_saturate, x_data, y_data, p0=p0, maxfev=10000)
-
-    # 绘制拟合曲线
-    '''
-    x_fit = np.linspace(min(x_data), max(x_data), 200)
-    y_fit = exp_saturate(x_fit, *popt)  # * 的作用是将列表解包成多个独立参数
-
-    plt.figure(figsize=(6,4))
-    plt.scatter(x_data, y_data, color='red', label='data points')
-    plt.plot(x_fit, y_fit, 'b-', label='fitted smooth curve')
-    plt.axvline(x_query, color='gray', linestyle='--', label=f'x={x_query}')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.title('Smooth saturating fit (approaching 18)')
-    plt.grid(True, alpha=0.3)
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    '''
-    depth = exp_saturate(x_query, *popt)
-    if depth <= 0:
-        raise ValueError('The flow depth is negative, please check the input parameters!')
-    # 返回查询值
-    return depth
-
-
-def compute_Hertz_contact_forces(radius_min, radius_max, modulus_eq, dem_density, dem_velocity):
-    """计算Hertz弹性接触理论中的接触力。"""
-    radius_equ = (1/3 * (radius_max**2 + radius_max*radius_min + radius_min**2)) ** 0.5
-    factor = (4/3) * modulus_eq**(2/5) * (5*np.pi/4)**(3/5) * dem_density**(3/5) * dem_velocity**(6/5)
-    force_min = factor * radius_min**2
-    force_max = factor * radius_max**2
-    force_equ = factor * radius_equ**2
-
-    coeff_force = 4/9 * (radius_max**2 + radius_max*radius_min + radius_min**2)
-    force_average = coeff_force * (5*np.pi/4)**(3/5) * modulus_eq**(2/5) * dem_density**(3/5) * dem_velocity**(6/5)
-
-    return force_min, force_max, force_equ, force_average
-
-
-def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_density, dem_velocity, sigma_y, distribute):
-    """计算Thornton弹性/理想塑性-接触力的期望。"""
-
-    F_single_min = np.zeros_like(dem_velocity)
-    F_single_max = np.zeros_like(dem_velocity)
-    E_Fmax_elastic = np.zeros_like(dem_velocity)
-    E_Fmax_plastic = np.zeros_like(dem_velocity)
-    E_Fmax = np.zeros_like(dem_velocity)
-
-    # 计算弹性碰撞结果
-    const_F_elastic = (4/3) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
-    F_single_min_elastic = const_F_elastic * radius_min**2
-    F_single_max_elastic = const_F_elastic * radius_max**2
-    #E_Fmax_elastic = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
-
-    # 计算塑性碰撞结果
-    velocity_y = np.sqrt(np.pi**4/40) * (sigma_y**5 / (dem_density * modulus_eq**4))**0.5  # np.sqrt(np.pi**4/40)=1.560521475613219791
-    velocity_y2 = (np.pi/(2*modulus_star))**2 * (8*np.pi*radius_star**3 / (15*mass_star))**(1/2) * sigma_y**(5/2)
-
-    const_F_plastic = np.sqrt((sigma_y**3*np.pi**3/(6*modulus_eq**2))**2 + np.pi**2*sigma_y*4/3*dem_density*(dem_velocity**2-velocity_y**2))
-
-    print('velocity_y=',velocity_y)
-    print('velocity_y2=',velocity_y2)
-    F_single_min_plastic = const_F_plastic * radius_min**2
-    F_single_max_plastic = const_F_plastic * radius_max**2
-    #E_Fmax_elastic = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
-
-    def integrate_r(r, const_F):
-            return const_F * r**2
-
-    if distribute == 'uniform':
-
-        def integrand_unif_distribute(r_min, r_max, const_F, field_x,field_n):
-            """计算均匀分布下的接触力"""
-            # 1. 截断均匀分布 (uniform 在 [r_min, r_max] 上天然归一化)
-            data_expanded = np.repeat(field_x, field_n)
-            dist_unif = stats.uniform(loc=r_min, scale=r_max - r_min)
-            #print(f"截断均匀分布 Uniform:\t loc={r_min:.4f}, scale={r_max - r_min:.4f}")
-            # 执行数值积分，计算均匀分布下的期望接触力
-            unif_result, unif_error = quad(lambda r: integrate_r(r,const_F) * dist_unif.pdf(r), r_min, r_max)
-
-            x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, dist_unif.pdf(x_plot), '-', linewidth=3.0)
-            return unif_result
-
-        # 计算所有粒径范围的期望接触力
-        for i in range(len(dem_velocity)):
-            # 展开数据用于拟合
-            field_x = np.linspace(radius_min[i], radius_max[i], 8)
-            field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
-
-            E_Fmax_elastic[i] = integrand_unif_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
-            E_Fmax_plastic[i] = integrand_unif_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
-
-
-    elif distribute == 'normal':
-
-        def integrand_norm_distribute(r_min, r_max, const_F, field_x,field_n):
-            """计算正态分布下的接触力"""
-            # 2. 截断正态分布
-            data_expanded = np.repeat(field_x, field_n)
-
-            mu = (r_max + r_min) / 2
-            sigma = np.std(data_expanded, ddof=1)  # 无偏估计
-            a, b = (r_min - mu) / sigma, (r_max - mu) / sigma
-            dist_norm = stats.truncnorm(a, b, loc=mu, scale=sigma)
-            diff_cdf = (dist_norm.cdf(r_max) - dist_norm.cdf(r_min))
-            #print(f"截断正态分布 TruncNorm:\t mu={mu:.4f}, sigma={sigma:.4f}, a={a:.4f}, b={b:.4f}")
-            # 执行数值积分，计算均匀分布下的期望接触力
-            norm_result, norm_error = quad(lambda r: integrate_r(r,const_F) * dist_norm.pdf(r)/diff_cdf, r_min, r_max)
-
-            x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, dist_norm.pdf(x_plot)/diff_cdf, '-', linewidth=3.0)
-            return norm_result
-  
-        # 计算所有粒径范围的期望接触力
-        for i in range(len(dem_velocity)):
-            # 展开数据用于拟合
-            field_x = np.linspace(radius_min[i], radius_max[i], 8)
-            field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
-
-            E_Fmax_elastic[i] = integrand_norm_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
-            E_Fmax_plastic[i] = integrand_norm_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
-
-    elif distribute == 'weibull_r':
-
-        def integrand_weibull_r_distribute(r_min, r_max, const_F, field_x,field_n):
-            """计算weibull分布下的接触力"""
-            # 3. 截断 Weibull 右偏
-            data_expanded = np.repeat(field_x, field_n)
-
-            c_wei_r, loc_wei_r, scale_wei_r = stats.weibull_min.fit(data_expanded)
-            a_r, b_r = (r_min - loc_wei_r) / scale_wei_r, (r_max - loc_wei_r) / scale_wei_r
-            weibull_r_dist = stats.truncweibull_min(c_wei_r, a_r, b_r, loc=loc_wei_r, scale=scale_wei_r)
-            diff_cdf = (weibull_r_dist.cdf(r_max) - weibull_r_dist.cdf(r_min))
-            #print(f"截断Weibull右偏 TruncWeibullMin_r:\t c={c_wei_r:.4f}, loc={loc_wei_r:.4f}, scale={scale_wei_r:.4f}, a={a_r:.4f}, b={b_r:.4f}")
-            # 执行数值积分，计算均匀分布下的期望接触力
-            weibull_r_result, weibull_r_error = quad(lambda r: integrate_r(r,const_F) * weibull_r_dist.pdf(r)/diff_cdf, r_min, r_max)
-
-            x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, weibull_r_dist.pdf(x_plot)/diff_cdf, '-', linewidth=3.0)
-
-            return weibull_r_result
-
-        # 计算所有粒径范围的期望接触力
-        for i in range(len(dem_velocity)):
-            # 展开数据用于拟合
-            field_x = np.linspace(radius_min[i], radius_max[i], 8)
-            field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
-
-            E_Fmax_elastic[i] = integrand_weibull_r_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
-            E_Fmax_plastic[i] = integrand_weibull_r_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
-
-    elif distribute == 'weibull_l':
-
-        def integrand_weibull_l_distribute(r_min, r_max, const_F, field_x,field_n):
-            """计算weibull分布下的接触力"""
-            # 4. 截断 Weibull 左偏（用反向数据拟合）
-            data_expanded = np.repeat(field_x, field_n)
-
-            c_wei_l, loc_wei_l, scale_wei_l = stats.weibull_min.fit(np.repeat(field_x, field_n[::-1]))
-            a_l, b_l = (r_min - loc_wei_l) / scale_wei_l, (r_max - loc_wei_l) / scale_wei_l
-            weibull_l_dist = stats.truncweibull_min(c_wei_l, a_l, b_l, loc=loc_wei_l, scale=scale_wei_l)
-            diff_cdf = (weibull_l_dist.cdf(r_max) - weibull_l_dist.cdf(r_min))
-            #print(f"截断Weibull左偏 TruncWeibullMin_l:\t c={c_wei_l:.4f}, loc={loc_wei_l:.4f}, scale={scale_wei_l:.4f}, a={a_l:.4f}, b={b_l:.4f}")
-            # 执行数值积分，计算均匀分布下的期望接触力
-            weibull_l_result, weibull_l_error = quad(lambda r: integrate_r(r,const_F) * weibull_l_dist.pdf(r)/diff_cdf, r_min, r_max)
-            
-            x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, weibull_l_dist.pdf(x_plot)/diff_cdf, '-', linewidth=3.0)
-
-            return weibull_l_result
-
-        # 计算所有粒径范围的期望接触力
-        for i in range(len(dem_velocity)):
-            # 展开数据用于拟合
-            field_x = np.linspace(radius_min[i], radius_max[i], 8)
-            field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
-
-            E_Fmax_elastic[i] = integrand_weibull_l_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
-            E_Fmax_plastic[i] = integrand_weibull_l_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
-
-    elif distribute == 'exponential':
-
-        def integrand_expo_distribute(r_min, r_max, const_F, field_x,field_n):
-            """计算指数分布下的接触力"""
-            # 5. 截断指数分布
-            data_expanded = np.repeat(field_x, field_n)
-
-            b_fit, loc_fit, scale_fit = stats.truncexpon.fit(data_expanded)
-            dist_expo = stats.truncexpon(b_fit, loc=loc_fit, scale=scale_fit)
-            diff_cdf = (dist_expo.cdf(r_max) - dist_expo.cdf(r_min))
-            #print(f"截断指数分布:\t b_fit={b_fit:.4f}, loc_fit={loc_fit:.4f}, scale_fit={scale_fit:.4f})
-            # 执行数值积分，计算均匀分布下的期望接触力
-            expo_result, expo_error = quad(lambda r: integrate_r(r,const_F) * dist_expo.pdf(r)/diff_cdf, r_min, r_max)
-            
-            x_plot = np.linspace(r_min, r_max, 100)
-            plt.plot(x_plot, dist_expo.pdf(x_plot)/diff_cdf, '-', linewidth=3.0)
-
-            return expo_result
-
-        # 计算所有粒径范围的期望接触力
-        for i in range(len(dem_velocity)):
-            # 展开数据用于拟合
-            field_x = np.linspace(radius_min[i], radius_max[i], 8)
-            field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
-
-            E_Fmax_elastic[i] = integrand_expo_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
-            E_Fmax_plastic[i] = integrand_expo_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
-         
-    # 用mask选择结果，分别赋值
-    mask_elastic = dem_velocity <= velocity_y      # 低速冲击掩码，True表示速度小于等于临界速度
-    mask_plastic = ~mask_elastic                       # 高速冲击掩码，True表示速度大于临界速度
-    
-    F_single_min = np.zeros_like(dem_velocity)
-    F_single_min[mask_elastic] = F_single_min_elastic[mask_elastic]
-    F_single_min[mask_plastic] = F_single_min_plastic[mask_plastic]
-    
-    F_single_max = np.zeros_like(dem_velocity)
-    F_single_max[mask_elastic] = F_single_max_elastic[mask_elastic]
-    F_single_max[mask_plastic] = F_single_max_plastic[mask_plastic]
-    
-    E_Fmax[mask_elastic] = E_Fmax_elastic[mask_elastic]
-    E_Fmax[mask_plastic] = E_Fmax_plastic[mask_plastic]
-
-    plt.show()
-
-    return velocity_y, F_single_min, F_single_max, E_Fmax
-
-
-def compute_gamma_space(Pier_shape):
-        # 根据桥墩形状设置 gamma_space
-    if Pier_shape == 'round':
-        gamma_space = np.pi / 4
-    elif Pier_shape == 'square':
-        gamma_space = 1
-    else:    
-        raise ValueError('Shape Of Section Not Found!')
-    return gamma_space
-
-def generate_waveform(wave_type, num_points=2400, amplitude=1.0):
-    """生成基础单峰波形"""
-    x = np.linspace(0, 1, num_points)
-
-    if wave_type == 'sine':
-        return amplitude * np.sin(np.pi * x)
-    
-    elif wave_type == 'triangle':
-        half = round(num_points / 2)
-        rise = np.linspace(0, amplitude, half)
-        fall = np.linspace(amplitude, 0, half)
-        return np.concatenate((rise, fall[1:],np.array([0])),axis=0)
-    
-    elif wave_type == 'square':
-        return np.full(num_points, amplitude)
-    
-    elif wave_type == 'sawtooth':
-        return amplitude * x
-
-    elif wave_type == 'trapezoidal':
-        num_rise = round(num_points / 4)
-        rise = np.linspace(0, amplitude, num_rise)
-        const = np.full(num_points - 2*num_rise, amplitude)
-        fall = np.linspace(amplitude, 0, num_rise)
-        return np.concatenate((rise, const, fall),axis=0)
-
-    
-    elif wave_type in ('exponential', 'shock'):
-        b = -np.log(0.02)/1.0
-        return amplitude * np.exp(-b*x)
-
-    elif wave_type == 'gaussian':
-        return amplitude * np.exp(-20 * (x - 0.5) ** 2)
-    
-    else:
-        raise ValueError(f"Unsupported wave type: {wave_type}")
-
-def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=5000):
-    """生成波形序列并求叠加"""
-    num_waves = np.maximum(np.ceil(t_contact / delta_t_DEMs), 1).astype(int)
-    time_step = t_contact / num_points
-    max_total_waves = np.zeros_like(t_contact)
-
-    for i in range(len(t_contact)):
-        if num_waves[i] == 1:
-            max_total_waves[i] = 1
-            continue
-        
-        shift_points = np.maximum(np.round(delta_t_DEMs[i] / time_step[i]), 1).astype(int)
-        total_points = (num_waves[i] - 1) * shift_points + num_points
-        time_values = np.arange(total_points) * time_step[i]
-
-        base_wave = generate_waveform(wave_type, num_points, amplitude)
-        total_wave = np.zeros(total_points)
-        waveforms = []
-        # 另一种方法为卷积实现，但当shift_points很大时，计算效率不如循环，可能造成资源浪费
-        for j in range(num_waves[i]):
-            wave = np.zeros(total_points)
-            start = j * shift_points
-            end = min(start + num_points, total_points)
-            length = end - start
-            wave[start:end] = base_wave[:length]
-            waveforms.append(wave)
-            total_wave += wave
-
-        max_total_waves[i] = np.max(total_wave)
-        
-    # 绘制前几条单个波形
-    for k in range(len(waveforms)):
-        plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
-    # 绘制叠加波形
-    plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
-    plt.legend()
-    plt.show()
-        
-    return max_total_waves
-
-
 if __name__ == '__main__':
     '''
     # 参数定义: Fujikake K, Li B, Soeun S (2009) https://doi.org/10.1061/(ASCE)ST.1943-541X.0000039
@@ -438,56 +37,61 @@ if __name__ == '__main__':
     # 参数定义: Majeed ZZA, Lam NTK, Lam C, et al (2019) https://doi.org/10.1016/j.ijimpeng.2019.103324
     case_number = 3
     DEM_velocity = np.array([2.2, 3.8, 5.4])  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
-    DEM_modulus = 50e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
-    DEM_strength = 60e6 * np.ones(case_number)     # 花岗岩强度 Pa
+    DEM_modulus = 65e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
+    DEM_miu = 0.2 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_strength = 160e6 * np.ones(case_number)     # 花岗岩强度 Pa
     DEM_radius = 0.05*np.ones(case_number)
     DEM_density = 1.4/(4/3*np.pi*DEM_radius**3)      # kg/m3  花岗岩密度2500kg/m3
     DEM_mass = DEM_density * 4/3*np.pi* DEM_radius**3
 
     Pier_velocity = 0 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
-    Pier_density = 2750 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
-    Pier_modulus = 30e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    Pier_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
-    Pier_strength = 30e6 * np.ones(case_number)     # 花岗岩强度 Pa
+    Pier_density = 2700 * np.ones(case_number)      # kg/m3  混凝土密度2500kg/m3
+    Pier_modulus = 3000e9 * np.ones(case_number)      # Pa   混凝土弹性模量50-100GPa
+    Pier_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  混凝土泊松比0.1-0.3
+    Pier_strength = 30000e6 * np.ones(case_number)     # 混凝土强度 Pa
     Pier_radius = np.inf*np.ones(case_number)
-
-    # 计算冲击时间
-    #t_contact_elastic, t_contact_elastoplastic = compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
 
     # 计算等效弹性模量
     modulus_eq = 1 / ((1-Pier_miu**2) / Pier_modulus + (1-DEM_miu**2) / DEM_modulus)
     radius_eq =  1 / (1 / DEM_radius + 1 / Pier_radius)
+    velocity_eq = np.abs(DEM_velocity - Pier_velocity)
+    sigma_y = np.minimum(DEM_strength, Pier_strength)
 
     # 计算屈服条件
-    sigma_y = np.minimum(DEM_strength, Pier_strength)
-    velocity_y1 = (np.pi/(2*modulus_eq))**2 * (8*np.pi*radius_eq**3 / (15*DEM_mass))**(1/2) * sigma_y**(5/2)
-    velocity_y = 3.194 * (1/modulus_eq)**2 * (radius_eq**3 / DEM_mass)**(1/2) * sigma_y**(5/2)
-    velocity_y_thorn = (np.pi/(2*modulus_eq))**2 * (2/(5*DEM_density))**(1/2) * sigma_y**(5/2)
-    velocity_y_thorn2 = 1.56 * (sigma_y**5 / (modulus_eq**4 * DEM_density))**(1/2)
+    velocity_y_Th = (np.pi/(2*modulus_eq))**2 * (8*np.pi*radius_eq**3 / (15*DEM_mass))**(1/2) * sigma_y**(5/2)
+    velocity_y_Th0 = 3.194 * (1/modulus_eq)**2 * (radius_eq**3 / DEM_mass)**(1/2) * sigma_y**(5/2)
+    velocity_y_Th1 = (np.pi/(2*modulus_eq))**2 * (2/(5*DEM_density))**(1/2) * sigma_y**(5/2)
+    velocity_y_Th2 = 1.56 * (sigma_y**5 / (modulus_eq**4 * DEM_density))**(1/2)
 
-    force_y = sigma_y**3 * np.pi**3 * radius_eq**2 / (6 * modulus_eq**2)
-    delta_y = sigma_y**2 * np.pi**2 * radius_eq / (4*modulus_eq**2)
+    force_y_Th = sigma_y**3 * np.pi**3 * radius_eq**2 / (6 * modulus_eq**2)
+    delta_y_Th = sigma_y**2 * np.pi**2 * radius_eq / (4*modulus_eq**2)
+
+    C_JG = 1.295*np.exp(0.736*DEM_miu)
+    velocity_y_JG = velocity_y_Th * C_JG**(5/2)# 
+    force_y_JG = force_y_Th * C_JG**3
+    delta_y_JG = delta_y_Th * C_JG**2
 
     # Hertz弹性接触理论计算冲击力（接触力）
-    force_Hertz1 = (4/3) * modulus_eq**(2/5) * radius_eq**(1/5) * DEM_mass**(3/5) * DEM_velocity**(6/5) * (15/16)**(3/5)
-    force_Hertz = (4/3) * modulus_eq**(2/5) * (5*np.pi/4)**(3/5) * DEM_density**(3/5) * DEM_velocity**(6/5) * DEM_radius**2
+    force_Hertz  = (4/3) * modulus_eq**(2/5) * radius_eq**(1/5) * DEM_mass**(3/5) * velocity_eq**(6/5) * (15/16)**(3/5)
+    force_Hertz0 = (4/3) * modulus_eq**(2/5) * (5*np.pi/4)**(3/5) * DEM_density**(3/5) * velocity_eq**(6/5) * DEM_radius**2
 
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
-    force_Thorn1 = np.sqrt(force_y**2 + np.pi*sigma_y*DEM_mass * (DEM_velocity**2 - velocity_y**2) * radius_eq)
-    force_Thorn = np.sqrt(force_y**2 + np.pi*sigma_y*(DEM_density*4/3*np.pi*DEM_radius**3) * (DEM_velocity**2 - velocity_y**2) * radius_eq)
+    force_Thorn  = np.sqrt(force_y_JG**2 + np.pi*sigma_y*DEM_mass * (velocity_eq**2 - velocity_y_JG**2) * radius_eq)
+    force_Thorn0 = np.sqrt(force_y_JG**2 + np.pi*sigma_y*(DEM_density*4/3*np.pi*DEM_radius**3) * (velocity_eq**2 - velocity_y_JG**2) * radius_eq)
 
     # 恢复系数e_rebond
-    e_coeff = velocity_y / DEM_velocity
-    e_rebond = (6 * 3**(1/2) / 5)**(1/2) * (1-1/6 * e_coeff**2)**(1/2) * (e_coeff/(e_coeff + 2*(6/5 - 1/5*e_coeff**2)**(1/2)))**(1/4)
+    c1 = velocity_y_JG / velocity_eq
+    coeff_r = (6 * 3**(1/2) / 5)**(1/2) * (1-1/6 * c1**2)**(1/2) * (c1/(c1 + 2*(6/5 - 1/5*c1**2)**(1/2)))**(1/4)
 
     print('DEM_mass      =',   np.array2string(DEM_mass,                     separator=', ', precision=6), 'kg')      
-    print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=6), 'm/s')      
-    print('velocity_y    =',   np.array2string(velocity_y*1000,              separator=', ', precision=6), 'mm/s')      
-    print('force_y       =',   np.array2string(force_y,                      separator=', ', precision=6), 'N')      
-    print('delta_y       =',   np.array2string(delta_y*1000,                 separator=', ', precision=6), 'mm') 
-    print('force_Hertz   =',   np.array2string(force_Hertz,                  separator=', ', precision=6), 'N') 
-    print('force_Hertz1  =',   np.array2string(force_Hertz1,                 separator=', ', precision=6), 'N') 
-    print('force_Thorn   =',   np.array2string(force_Thorn,                  separator=', ', precision=6), 'N') 
-    print('force_Thorn1  =',   np.array2string(force_Thorn1,                 separator=', ', precision=6), 'N') 
-    print('e_rebond  =',       np.array2string(e_rebond,                     separator=', ', precision=3), ' ') 
+    print('velocity_eq   =',   np.array2string(velocity_eq,                  separator=', ', precision=6), 'm/s')      
+    print('velocity_y_JG =',   np.array2string(velocity_y_JG*1000,           separator=', ', precision=6), 'mm/s')      
+    print('force_y_JG    =',   np.array2string(force_y_JG,                   separator=', ', precision=6), 'N')      
+    print('delta_y_JG    =',   np.array2string(delta_y_JG*1000,              separator=', ', precision=6), 'mm')      
+    print('force_y_Th    =',   np.array2string(force_y_Th,                   separator=', ', precision=6), 'N')      
+    print('delta_y_Th    =',   np.array2string(delta_y_Th*1000,              separator=', ', precision=6), 'mm') 
+    print('force_Hertz   =',   np.array2string(force_Hertz/1000,             separator=', ', precision=6), 'kN') 
+    print('force_Hertz0  =',   np.array2string(force_Hertz0/1000,            separator=', ', precision=6), 'kN') 
+    print('force_Thorn   =',   np.array2string(force_Thorn/1000,             separator=', ', precision=6), 'kN') 
+    print('force_Thorn0  =',   np.array2string(force_Thorn0/1000,            separator=', ', precision=6), 'kN') 
+    print('coeff_r  =',        np.array2string(coeff_r,                      separator=', ', precision=3), ' ') 
