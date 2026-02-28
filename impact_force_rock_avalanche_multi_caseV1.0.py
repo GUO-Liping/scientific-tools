@@ -298,7 +298,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
             # 展开数据用于拟合
             field_x = np.linspace(radius_min[i], radius_max[i], 8)
             field_n = np.array([19, 65, 60, 38, 20, 16, 8, 7])
-            plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
+            #plt.bar(field_x, field_n/((field_x[1] - field_x[0]) * field_n.sum()), 0.5*(field_x[1]-field_x[0]), color='C0')
 
             E_Fmax_elastic[i] = integrand_expo_distribute(radius_min[i], radius_max[i], const_F_elastic[i], field_x,field_n)
             E_Fmax_plastic[i] = integrand_expo_distribute(radius_min[i], radius_max[i], const_F_plastic[i], field_x,field_n)
@@ -318,7 +318,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     E_Fmax[mask_elastic] = E_Fmax_elastic[mask_elastic]
     E_Fmax[mask_plastic] = E_Fmax_plastic[mask_plastic]
 
-    plt.show()
+    #plt.show()
 
     return velocity_y, F_single_min, F_single_max, E_Fmax
 
@@ -399,22 +399,40 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
             total_wave += wave
 
         max_total_waves[i] = np.max(total_wave)
-        
+    
+       
     # 绘制前几条单个波形
     for k in range(len(waveforms)):
         plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
     # 绘制叠加波形
     plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
     plt.legend()
-    plt.show()
-        
+    
     return max_total_waves
 
 
 if __name__ == '__main__':
     # 参数定义
+    # Choi et al. 2020参数
+    case_number = 4
+    DEM_velocity = 3.2* np.ones(case_number)      # m/s
+    DEM_depth = np.array([0.021, 0.03, 0.04, 0.046])       # m
+    DEM_density = 2500* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
+    DEM_modulus = 55e9* np.ones(case_number)      # Pa  玻璃弹性模量55GPa
+    DEM_miu = 0.25* np.ones(case_number)          # Poisson's ratio  玻璃泊松比0.25
+    DEM_strength = 70* np.ones(case_number)       # 屈服强度 70MPa
+    radius_min = 10.0e-3/2* np.ones(case_number)   # m
+    radius_max = 10.0e-3/2* np.ones(case_number)   # m
+    ratio_solid = np.pi/6.0* np.ones(case_number) # 固相体积分数np.pi/6.0
+    impact_angle_deg = 90* np.ones(case_number)   # 冲击角度 °
 
-    # This study
+    Pier_shape = 'square'
+    Pier_width = 0.2* np.ones(case_number)        # m
+    Pier_modulus = 3.0e9* np.ones(case_number)    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
+    Pier_miu = 0.3* np.ones(case_number)          # Poisson's ratio 
+    Pier_strength = 50e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
+    '''
+    # Yaoheba rock avalanche 2020
     case_number = 1
     DEM_Volumn = 0.1 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
 
@@ -437,9 +455,6 @@ if __name__ == '__main__':
 
     ratio_solid = 0.64 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
-    wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
-    dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
-
 
     # Pier_shape = 'square', 'round'
     Pier_shape = 'square'
@@ -447,13 +462,16 @@ if __name__ == '__main__':
     Pier_modulus = 3.0e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.3 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
     Pier_strength = 30e6 * np.ones(case_number)          # Pa C30混凝土强度:30 MPa
-    
+    '''
+    wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
+    dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
+
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
-    C_JG_DEM = 1.295*np.exp(0.736*DEM_miu)
-    C_JG_Pier = 1.295*np.exp(0.736*Pier_miu)
+    C_JG_DEM = 1
+    C_JG_Pier =1
     sigma_y = np.minimum(C_JG_DEM * DEM_strength, C_JG_Pier * Pier_strength)
 
     # 计算冲击时间
@@ -471,7 +489,7 @@ if __name__ == '__main__':
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
     #print('[Thornton Elasto-Plastic Theory]: ')
     v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, dist_type)
-    print('v_y=',v_y)
+    print('E_Fmax=',E_Fmax)
     #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
 
     flow_time = np.ones_like(E_Fmax)  # s
@@ -485,6 +503,7 @@ if __name__ == '__main__':
 
     gamma_space = compute_gamma_space(Pier_shape)
     gamma_time  = compute_gamma_time(wave_type,t_contact_elastoplastic,delta_t_DEMs)
+    print('gamma_time=', gamma_time)
     angle_impact = np.sin(np.radians(impact_angle_deg))
 
     total_force = gamma_time * gamma_space * angle_impact * E_Fmax
@@ -521,7 +540,6 @@ if __name__ == '__main__':
     impact_angle_deg = 90   # 冲击角度 °
 
     Pier_shape = 'square'
-    # Pier_shape = 'round'
     Pier_width = 0.2        # m
     Pier_modulus = 3.0e9    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
     Pier_miu = 0.3          # Poisson's ratio 

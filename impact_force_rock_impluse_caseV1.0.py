@@ -15,28 +15,28 @@ plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 
 if __name__ == '__main__':
-    '''
+    
     # 参数定义: Fujikake K, Li B, Soeun S (2009) https://doi.org/10.1061/(ASCE)ST.1943-541X.0000039
-    DEM_velocity = np.sqrt(2*9.81*np.array([0.0, 0.01, 0.05, 0.10, 0.15, 0.3, 0.6, 1.2, 2.4]) ) # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_velocity = np.sqrt(2*9.81*np.array([0.0, 0.01, 0.05, 0.10, 0.15, 0.3, 0.6, 1.2, 2.4]) ) #      # m/s
     case_number = len(DEM_velocity)
     DEM_modulus = 210e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.30 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_miu = 0.3 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 235e6 * np.ones(case_number)     # 花岗岩强度 Pa
     DEM_radius = 0.09*np.ones(case_number)
-    DEM_density = 500/(4/3*np.pi*DEM_radius**3)      # kg/m3  花岗岩密度2500kg/m3
+    DEM_density = 400/(4/3*np.pi*DEM_radius**3)      # kg/m3  花岗岩密度2500kg/m3
     DEM_mass = DEM_density * 4/3*np.pi* DEM_radius**3
 
     Pier_velocity = 0 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
     Pier_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     Pier_modulus = 30e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    Pier_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    Pier_miu = 0.2 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     Pier_strength = 42e6 * np.ones(case_number)     # 花岗岩强度 Pa
     Pier_radius = np.inf*np.ones(case_number)
     '''
 
     # 参数定义: Majeed ZZA, Lam NTK, Lam C, et al (2019) https://doi.org/10.1016/j.ijimpeng.2019.103324
-    case_number = 6
-    DEM_velocity = np.array([2.2, 3.1, 3.8, 4.4, 5.4, 6.3])  # np.array([9.52, 11.72, 14.2, 17.2, 20.8, 23.8, 26.3])  
+    DEM_velocity = np.array([15.0])  # np.array([2.2, 3.1, 3.8, 4.4, 5.4, 6.3]) ,np.array([9.52, 11.72, 14.2, 17.2, 20.8, 23.8, 26.3])
+    case_number = len(DEM_velocity)
     DEM_modulus = 65e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.3 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 160e6 * np.ones(case_number)     # 花岗岩强度 Pa
@@ -50,17 +50,16 @@ if __name__ == '__main__':
     Pier_miu = 0.30 * np.ones(case_number)          # Poisson's ratio  混凝土泊松比0.1-0.3
     Pier_strength = 42e6 * np.ones(case_number)     # 混凝土强度 Pa
     Pier_radius = np.inf*np.ones(case_number)
-    
+    '''
 
     # 计算等效弹性模量
     modulus_eq = 1 / ((1-Pier_miu**2) / Pier_modulus + (1-DEM_miu**2) / DEM_modulus)
     radius_eq =  1 / (1 / DEM_radius + 1 / Pier_radius)
     velocity_eq = np.abs(DEM_velocity - Pier_velocity)
 
-    C_JG = 1.295*np.exp(0.736*DEM_miu)
+    C_JG = 1.6* np.ones(case_number)  # 1.295*np.exp(0.736*DEM_miu)
     sigma_y_Th = np.minimum(DEM_strength, Pier_strength)
     sigma_y_JG = sigma_y_Th * C_JG
-    print(C_JG)
 
     # 计算屈服条件
     velocity_y_Th = (np.pi/(2*modulus_eq))**2 * (8*np.pi*radius_eq**3 / (15*DEM_mass))**(1/2) * sigma_y_Th**(5/2)
@@ -104,14 +103,15 @@ if __name__ == '__main__':
 
     print('DEM_mass      =',   np.array2string(DEM_mass,                     separator=', ', precision=3), 'kg')      
     print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=3), 'm/s')      
+    print('C_JG          =',   np.array2string(C_JG,                         separator=', ', precision=3), ' ')      
     print('velocity_y_Th =',   np.array2string(velocity_y_Th*1000,           separator=', ', precision=4), 'mm/s')      
     print('velocity_y_JG =',   np.array2string(velocity_y_JG*1000,           separator=', ', precision=4), 'mm/s')      
     print('delta_y_Th    =',   np.array2string(delta_y_Th*1000,              separator=', ', precision=4), 'mm') 
     print('delta_y_JG    =',   np.array2string(delta_y_JG*1000,              separator=', ', precision=4), 'mm')      
     print('force_y_Th    =',   np.array2string(force_y_Th,                   separator=', ', precision=3), 'N')      
     print('force_y_JG    =',   np.array2string(force_y_JG,                   separator=', ', precision=3), 'N')      
-    print('force_Hertz   =',   np.array2string(force_Hertz/1000,             separator=', ', precision=3), 'kN') 
-    print('force_Th      =',   np.array2string(force_Th/1000,                separator=', ', precision=3), 'kN') 
-    print('force_JG      =',   np.array2string(force_JG/1000,                separator=', ', precision=3), 'kN') 
+    print('force_Hz      =',   np.array2string(force_Hertz/1000,             separator=', ', precision=2), 'kN') 
+    print('force_Th      =',   np.array2string(force_Th/1000,                separator=', ', precision=2), 'kN') 
+    print('force_JG      =',   np.array2string(force_JG/1000,                separator=', ', precision=2), 'kN') 
     print('coeff_Th      =',   np.array2string(coeff_Th,                     separator=', ', precision=3), ' ') 
     print('coeff_JG      =',   np.array2string(coeff_JG,                     separator=', ', precision=3), ' ') 
