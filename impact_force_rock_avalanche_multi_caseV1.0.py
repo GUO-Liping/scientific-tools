@@ -452,7 +452,9 @@ if __name__ == '__main__':
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
-    sigma_y = np.minimum(DEM_strength, Pier_strength)
+    C_JG_DEM = 1.295*np.exp(0.736*DEM_miu)
+    C_JG_Pier = 1.295*np.exp(0.736*Pier_miu)
+    sigma_y = np.minimum(C_JG_DEM * DEM_strength, C_JG_Pier * Pier_strength)
 
     # 计算冲击时间
     t_contact_elastic, t_contact_elastoplastic = compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, radius_max, DEM_velocity, Pier_modulus, Pier_miu, sigma_y)
