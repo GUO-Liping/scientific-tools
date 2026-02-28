@@ -148,12 +148,13 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     #E_Fmax_elastic = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
 
     # 计算塑性碰撞结果
-    velocity_y = np.sqrt(np.pi**4/40) * (sigma_y**5 / (dem_density * modulus_eq**4))**0.5  # np.sqrt(np.pi**4/40)=1.560521475613219791
+    velocity_y = (np.pi/(2*modulus_eq))**2 * (2/(5*dem_density))**(1/2) * sigma_y**(5/2)
 
     const_F_plastic = np.sqrt((sigma_y**3*np.pi**3/(6*modulus_eq**2))**2 + np.pi**2*sigma_y*4/3*dem_density*(dem_velocity**2-velocity_y**2))
     F_single_min_plastic = const_F_plastic * radius_min**2
     F_single_max_plastic = const_F_plastic * radius_max**2
     #E_Fmax_elastic = (4/9) * (radius_max**2 + radius_max*radius_min + radius_min**2) * modulus_eq**0.4 * (5 * dem_density * np.pi * dem_velocity**2 / 4)**0.6
+    print('F_single_max_plastic=', F_single_max_plastic)
 
     def integrate_r(r, const_F):
             return const_F * r**2
@@ -414,21 +415,21 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
 if __name__ == '__main__':
     # 参数定义
     # Choi et al. 2020参数
-    case_number = 4
+    case_number = 1
     DEM_velocity = 3.2* np.ones(case_number)      # m/s
-    DEM_depth = np.array([0.021, 0.03, 0.04, 0.046])       # m
+    DEM_depth = np.array([0.046])       # m
     DEM_density = 2500* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
     DEM_modulus = 55e9* np.ones(case_number)      # Pa  玻璃弹性模量55GPa
     DEM_miu = 0.25* np.ones(case_number)          # Poisson's ratio  玻璃泊松比0.25
-    DEM_strength = 70* np.ones(case_number)       # 屈服强度 70MPa
+    DEM_strength = 70e6* np.ones(case_number)       # 屈服强度 70MPa
     radius_min = 10.0e-3/2* np.ones(case_number)   # m
     radius_max = 10.0e-3/2* np.ones(case_number)   # m
-    ratio_solid = np.pi/6.0* np.ones(case_number) # 固相体积分数np.pi/6.0
+    ratio_solid = 0.64* np.ones(case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90* np.ones(case_number)   # 冲击角度 °
 
     Pier_shape = 'square'
     Pier_width = 0.2* np.ones(case_number)        # m
-    Pier_modulus = 3.0e9* np.ones(case_number)    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
+    Pier_modulus = 5e9* np.ones(case_number)    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
     Pier_miu = 0.3* np.ones(case_number)          # Poisson's ratio 
     Pier_strength = 50e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
     '''
@@ -470,8 +471,8 @@ if __name__ == '__main__':
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
-    C_JG_DEM = 1
-    C_JG_Pier =1
+    C_JG_DEM = 1# 1.295*np.exp(0.736*DEM_miu)
+    C_JG_Pier = 1# 1.295*np.exp(0.736*Pier_miu)
     sigma_y = np.minimum(C_JG_DEM * DEM_strength, C_JG_Pier * Pier_strength)
 
     # 计算冲击时间
@@ -484,13 +485,12 @@ if __name__ == '__main__':
 
     # Hertz弹性接触理论计算冲击力（接触力）
     force_min, force_max, force_equ, force_average = compute_Hertz_contact_forces(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity)
-    #print('[Hertz Elastic Theory]: ', '\n\tF_min=', np.round(force_min/1000,3), '\n\tF_max=',np.round(force_max/1000,3),'\n\tF_average=',np.round(force_average/1000,3),'kN')
+    print('[Hertz Elastic Theory]: ', '\n\tF_min=', np.round(force_min/1000,3), '\n\tF_max=',np.round(force_max/1000,3),'\n\tF_average=',np.round(force_average/1000,3),'kN')
 
     # Thornton弹性-理想塑性接触理论计算冲击力（接触力）
     #print('[Thornton Elasto-Plastic Theory]: ')
     v_y, F_min, F_max, E_Fmax = compute_Thornton_contact_force(radius_min, radius_max, modulus_equ, DEM_density, DEM_velocity, sigma_y, dist_type)
-    print('E_Fmax=',E_Fmax)
-    #print(f'\tF_min = {np.round(F_min/1000,3)}, \n\tF_max = {np.round(F_max/1000,3)}, \n\tforce_average = {np.round(E_Fmax/1000,3)}', 'kN')
+    print(f'\tF_min256 = {np.round(F_min,3)}, \n\tF_max = {np.round(F_max,3)}, \n\tforce_average = {np.round(E_Fmax,3)}', 'N')
 
     flow_time = np.ones_like(E_Fmax)  # s
     flow_volume_total = DEM_volume_flux * flow_time
