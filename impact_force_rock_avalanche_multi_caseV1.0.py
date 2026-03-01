@@ -319,7 +319,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     E_Fmax[mask_elastic] = E_Fmax_elastic[mask_elastic]
     E_Fmax[mask_plastic] = E_Fmax_plastic[mask_plastic]
 
-    #plt.show()
+    plt.show()
 
     return velocity_y, F_single_min, F_single_max, E_Fmax
 
@@ -415,15 +415,15 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
 if __name__ == '__main__':
     # 参数定义
     # Choi et al. 2020参数
-    case_number = 1
-    DEM_velocity = 3.2* np.ones(case_number)      # m/s
-    DEM_depth = np.array([0.046])       # m
+    DEM_depth = np.linspace(0.01, 0.06, num=6, endpoint=True)       # m
+    case_number = len(DEM_depth)
+    DEM_velocity = 1.7* np.ones(case_number)      # m/s
     DEM_density = 2500* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
     DEM_modulus = 55e9* np.ones(case_number)      # Pa  玻璃弹性模量55GPa
     DEM_miu = 0.25* np.ones(case_number)          # Poisson's ratio  玻璃泊松比0.25
     DEM_strength = 70e6* np.ones(case_number)       # 屈服强度 70MPa
-    radius_min = 10.0e-3/2* np.ones(case_number)   # m
-    radius_max = 10.0e-3/2* np.ones(case_number)   # m
+    radius_min = 3.0e-3/2* np.ones(case_number)   # m
+    radius_max = 3.0e-3/2* np.ones(case_number)   # m
     ratio_solid = 0.64* np.ones(case_number) # 固相体积分数np.pi/6.0
     impact_angle_deg = 90* np.ones(case_number)   # 冲击角度 °
 
@@ -509,20 +509,19 @@ if __name__ == '__main__':
     total_force = gamma_time * gamma_space * angle_impact * E_Fmax
 
     print('DEM_impact_rate=',  np.array2string(DEM_impact_rate,              separator=', ', precision=1), 's^{-1}')
-    #print('DEM_Volumn    =',   np.array2string(DEM_Volumn,                   separator=', ', precision=1), 'm^3')      
-    print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=3), 'm')      
-    print('ratio_solid   =',   np.array2string(ratio_solid,                  separator=', ', precision=2), ' ')      
-    print('DEM_volume_flux =', np.array2string(DEM_volume_flux,              separator=', ', precision=1), 'm^3/s')      
-    print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' ')      
-    print('delta_t_DEMs  =',   np.array2string(delta_t_DEMs*1000,            separator=', ', precision=3), 'ms')      
-    print('t_contact     =',   np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=3), 'ms')      
-    print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s')      
-    print('radius_min    =',   np.array2string(radius_min*1000,              separator=', ', precision=1), 'mm')      
-    print('radius_max    =',   np.array2string(radius_max*1000,              separator=', ', precision=1), 'mm')      
-    print('F_min         =',   np.array2string(F_min/1.000,                  separator=', ', precision=2), 'N')      
-    print('F_max         =',   np.array2string(F_max/1.000,                  separator=', ', precision=2), 'N')      
-    print('E_Fmax        =',   np.array2string(E_Fmax/1.000,                 separator=', ', precision=2), 'N')      
-    print('total_force   =',   np.array2string(total_force/1.000,            separator=', ', precision=2), 'N')
+    print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=3), 'm'     )      
+    print('ratio_solid   =',   np.array2string(ratio_solid,                  separator=', ', precision=2), ' '     )      
+    print('DEM_volume_flux =', np.array2string(DEM_volume_flux,              separator=', ', precision=1), 'm^3/s' )      
+    print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' '     )      
+    print('delta_t_DEMs  =',   np.array2string(delta_t_DEMs*1000,            separator=', ', precision=3), 'ms'    )      
+    print('t_contact     =',   np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=3), 'ms'    )      
+    print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s'   )      
+    print('radius_min    =',   np.array2string(radius_min*1000,              separator=', ', precision=1), 'mm'    )      
+    print('radius_max    =',   np.array2string(radius_max*1000,              separator=', ', precision=1), 'mm'    )      
+    print('F_min         =',   np.array2string(F_min/1.000,                  separator=', ', precision=2), 'N'     )      
+    print('F_max         =',   np.array2string(F_max/1.000,                  separator=', ', precision=2), 'N'     )      
+    print('E_Fmax        =',   np.array2string(E_Fmax/1.000,                 separator=', ', precision=2), 'N'     )      
+    print('total_force   =',   np.array2string(total_force/1.000,            separator=', ', precision=2), 'N'     )
 
     plt.show()
 

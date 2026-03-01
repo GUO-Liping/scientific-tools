@@ -55,17 +55,17 @@ if __name__ == '__main__':
     # 参数定义: Choi, et al (2020) 
     DEM_velocity = np.array([3.2])  # np.array([2.2, 3.1, 3.8, 4.4, 5.4, 6.3]) ,np.array([9.52, 11.72, 14.2, 17.2, 20.8, 23.8, 26.3])
     case_number = len(DEM_velocity)
-    DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.25 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_modulus = 55e9 * np.ones(case_number)      # Pa 玻璃珠弹性模量50-100GPa
+    DEM_miu = 0.25 * np.ones(case_number)          # Poisson's ratio  玻璃珠泊松比0.25
     DEM_strength = 70e6 * np.ones(case_number)     # 花岗岩强度 Pa
     DEM_radius = 0.005*np.ones(case_number)
-    DEM_density = 2500      # kg/m3  花岗岩密度2500kg/m3
+    DEM_density = 2500      # kg/m3  玻璃珠密度2500kg/m3
     DEM_mass = DEM_density * 4/3*np.pi* DEM_radius**3
 
-    Pier_velocity = 0 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
-    Pier_density = 2500 * np.ones(case_number)      # kg/m3  混凝土密度2500kg/m3
-    Pier_modulus = 3e9 * np.ones(case_number)      # Pa   混凝土弹性模量30-50GPa
-    Pier_miu = 0.30 * np.ones(case_number)          # Poisson's ratio  混凝土泊松比0.1-0.3
+    Pier_velocity = 0 * np.ones(case_number)  # PMMA m/s
+    Pier_density = 2500 * np.ones(case_number)      # kg/m3  PMMA密度2500kg/m3
+    Pier_modulus = 3e9 * np.ones(case_number)      # Pa  混凝土弹性模量30-50GPa
+    Pier_miu = 0.30 * np.ones(case_number)          # Poisson's ratio PMMA泊松比0.3
     Pier_strength = 50e6 * np.ones(case_number)     # 混凝土强度 Pa
     Pier_radius = np.inf*np.ones(case_number)
     
@@ -130,8 +130,8 @@ if __name__ == '__main__':
     print('delta_y_JG    =',   np.array2string(delta_y_JG*1000,              separator=', ', precision=4), 'mm')      
     print('force_y_Th    =',   np.array2string(force_y_Th,                   separator=', ', precision=3), 'N')      
     print('force_y_JG    =',   np.array2string(force_y_JG,                   separator=', ', precision=3), 'N')      
-    print('force_Hz      =',   np.array2string(force_Hertz/1000,             separator=', ', precision=2), 'kN') 
-    print('force_Th      =',   np.array2string(force_Th/1000,                separator=', ', precision=2), 'kN') 
-    print('force_JG      =',   np.array2string(force_JG/1000,                separator=', ', precision=2), 'kN') 
+    print('force_Hz      =',   np.array2string(force_Hertz,                  separator=', ', precision=2), 'N') 
+    print('force_Th      =',   np.array2string(force_Th,                     separator=', ', precision=2), 'N') 
+    print('force_JG      =',   np.array2string(force_JG,                     separator=', ', precision=2), 'N') 
     print('coeff_Th      =',   np.array2string(coeff_Th,                     separator=', ', precision=3), ' ') 
     print('coeff_JG      =',   np.array2string(coeff_JG,                     separator=', ', precision=3), ' ') 
