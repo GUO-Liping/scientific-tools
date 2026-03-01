@@ -82,7 +82,7 @@ def compute_DEM_depth(x_query):
     """
     # 原始数据
     x_data = np.array([1000, 2000, 4000, 8000, 16000])
-    y_data = np.array([3.2, 6.4, 12.8, 16.0, 18.0])
+    y_data = np.array([4.5, 9.5, 12.5, 16.0, 20.0])
 
     # 指数饱和模型： y = a - b * exp(-c * x)
     def exp_saturate(x, a, b, c):
@@ -95,14 +95,13 @@ def compute_DEM_depth(x_query):
     popt, _ = curve_fit(exp_saturate, x_data, y_data, p0=p0, maxfev=10000)
 
     # 绘制拟合曲线
-    '''
+    
     x_fit = np.linspace(min(x_data), max(x_data), 200)
     y_fit = exp_saturate(x_fit, *popt)  # * 的作用是将列表解包成多个独立参数
-
+    '''
     plt.figure(figsize=(6,4))
     plt.scatter(x_data, y_data, color='red', label='data points')
     plt.plot(x_fit, y_fit, 'b-', label='fitted smooth curve')
-    plt.axvline(x_query, color='gray', linestyle='--', label=f'x={x_query}')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.title('Smooth saturating fit (approaching 18)')
@@ -112,10 +111,13 @@ def compute_DEM_depth(x_query):
     plt.show()
     '''
     depth = exp_saturate(x_query, *popt)
-    if depth <= 0:
+    if depth.any() <= 0:
         raise ValueError('The flow depth is negative, please check the input parameters!')
     # 返回查询值
-    return depth
+    if x_query.all()==x_data.all():
+        return y_data
+    else:
+        return depth
 
 
 def compute_Hertz_contact_forces(radius_min, radius_max, modulus_eq, dem_density, dem_velocity):
@@ -435,8 +437,8 @@ if __name__ == '__main__':
     Pier_strength = 50e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
     '''
     # Yaoheba rock avalanche 2020
-    case_number = 1
-    DEM_Volumn = 1000 * np.ones(case_number)# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
+    case_number = 5
+    DEM_Volumn = np.array([1000,2000,4000,8000,16000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
 
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
@@ -452,10 +454,10 @@ if __name__ == '__main__':
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.3*np.ones(case_number)
-    radius_max = 0.6*np.ones(case_number)
+    radius_min = 0.6*np.ones(case_number)
+    radius_max = 1.2*np.ones(case_number)
 
-    ratio_solid = np.pi/6 * np.ones(case_number) # 固相体积分数0.61-0.68
+    ratio_solid = 0.68 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
 
     # Pier_shape = 'square', 'round'
@@ -463,9 +465,9 @@ if __name__ == '__main__':
     Pier_width = 2.2 * np.ones(case_number)        # m
     Pier_modulus = 31e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
-    Pier_strength = 30e6 * np.ones(case_number)          # Pa C30混凝土强度:30 MPa
+    Pier_strength = 30e6 * np.ones(case_number)          # Pa 考虑应变率效应，放大系数为1.3828，C30混凝土静载强度:30 MPa
     
-    wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
+    wave_type = 'sine'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
     dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
     # 调整半径
