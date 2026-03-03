@@ -32,7 +32,7 @@ def adjust_radius(radius_min, radius_max):
 
 def compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radius, DEM_velocity, Pier_modulus, Pier_miu, sigma_y):
     # Johnson弹塑性碰撞时长
-    sigma_yd = 1.0 * sigma_y  # pd/pm = 1.28 for steel material
+    sigma_yd = sigma_y  # pd/pm = 1.28 for steel material
     p_d = 3.0 * sigma_yd
     modulus_star = 1/((1-DEM_miu**2)/DEM_modulus + (1-Pier_miu**2)/Pier_modulus)
     radius_star = DEM_radius
@@ -45,6 +45,7 @@ def compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radiu
     coeff_re = np.sqrt(coeff1 * coeff2 * coeff3)
 
     coeff_re = np.minimum(coeff_re, 1.0)
+    print('coeff_re=', coeff_re)
 
     # 当速度比较小时，采用下式coeff_re2计算的恢复系数大于1，且与coeff_re相差较大，这说明使用p_d≈3.0σy不准确，故不采用
     # coeff_re2 = 3.7432822830305064 * np.sqrt(sigma_yd/modulus_star) * ((1/2*mass_star*velocity_relative**2)/(sigma_yd*radius_star**3))**(-1/8)
@@ -58,7 +59,7 @@ def compute_elastoplastic_t_contact(DEM_density, DEM_modulus, DEM_miu, DEM_radiu
     t_elastic_origin = 2 * (delta_z_star/velocity_relative) * int_result
 
     # eq.(11.24), 本程序采用该式  
-    t_elastic = 2.868265699194853 * (mass_star**2 / (radius_star*modulus_star**2 * (coeff_re*velocity_relative)))**(1/5)
+    t_elastic = 2.87 * (mass_star**2 / (radius_star*modulus_star**2 * (coeff_re*velocity_relative)))**(1/5)
     t_plastic = np.sqrt((np.pi * mass_star) / (8*radius_star*p_d))
     
     t_elastic_eq11_47 = 1.2 * coeff_re * t_plastic  # eq.(11.47)
@@ -435,7 +436,7 @@ if __name__ == '__main__':
     Pier_modulus = 5e9* np.ones(case_number)    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
     Pier_miu = 0.3* np.ones(case_number)          # Poisson's ratio 
     Pier_strength = 50e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
-    '''
+    
     # Yaoheba rock avalanche 2020
     case_number = 5
     DEM_Volumn = np.array([1000,2000,4000,8000,16000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
@@ -466,16 +467,36 @@ if __name__ == '__main__':
     Pier_modulus = 31e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
     Pier_strength = 30e6 * np.ones(case_number)          # Pa 考虑应变率效应，放大系数为1.3828，C30混凝土静载强度:30 MPa
-    
-    wave_type = 'sine'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
+    '''
+    # Wang et al. 2025参数
+    DEM_depth = np.linspace(0.03, 0.10, num=8, endpoint=True)       # m
+    case_number = len(DEM_depth)
+    DEM_velocity = 1.2* np.ones(case_number)      # m/s
+    DEM_density = 2550* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
+    DEM_modulus = 60e9* np.ones(case_number)      # Pa  玻璃弹性模量60GPa
+    DEM_miu = 0.25* np.ones(case_number)          # Poisson's ratio  玻璃泊松比0.25
+    DEM_strength = 10e6* np.ones(case_number)       # 屈服强度 70MPa
+    radius_min = 0.004* np.ones(case_number)   # m
+    radius_max = 0.004* np.ones(case_number)   # m
+    ratio_solid = np.pi/6* np.ones(case_number) # 固相体积分数0.45
+    impact_angle_deg = 90* np.ones(case_number)   # 冲击角度 °
+
+    Pier_shape = 'round'
+    Pier_width = 0.1* np.ones(case_number)+0.016        # m
+    Pier_modulus = 3.2e9* np.ones(case_number)    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
+    Pier_density = 2550* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
+    Pier_miu = 0.35* np.ones(case_number)          # Poisson's ratio 
+    Pier_strength = 10e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
+
+    wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
     dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
-    C_JG_DEM = 1.295*np.exp(0.736*DEM_miu)
-    C_JG_Pier = 1.295*np.exp(0.736*Pier_miu)
+    C_JG_DEM = 1.297*np.exp(0.736*DEM_miu)
+    C_JG_Pier = 1.297*np.exp(0.736*Pier_miu)
     sigma_y = np.minimum(C_JG_DEM * DEM_strength, C_JG_Pier * Pier_strength)
 
     # 计算冲击时间
@@ -521,10 +542,10 @@ if __name__ == '__main__':
     print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s'   )      
     print('radius_min    =',   np.array2string(radius_min,                   separator=', ', precision=1), 'mm'    )      
     print('radius_max    =',   np.array2string(radius_max,                   separator=', ', precision=1), 'mm'    )      
-    print('F_min         =',   np.array2string(F_min/1000,                   separator=', ', precision=2), 'kN'     )      
-    print('F_max         =',   np.array2string(F_max/1000,                   separator=', ', precision=2), 'kN'     )      
-    print('E_Fmax        =',   np.array2string(E_Fmax/1000,                  separator=', ', precision=2), 'kN'     )      
-    print('total_force   =',   np.array2string(total_force/1000,             separator=', ', precision=2), 'kN'     )
+    print('F_min         =',   np.array2string(F_min,                        separator=', ', precision=2), 'N'     )      
+    print('F_max         =',   np.array2string(F_max,                        separator=', ', precision=2), 'N'     )      
+    print('E_Fmax        =',   np.array2string(E_Fmax,                       separator=', ', precision=2), 'N'     )      
+    print('total_force   =',   np.array2string(total_force,                  separator=', ', precision=2), 'N'     )
 
     plt.show()
 
