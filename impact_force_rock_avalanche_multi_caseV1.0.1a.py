@@ -322,7 +322,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     E_Fmax[mask_elastic] = E_Fmax_elastic[mask_elastic]
     E_Fmax[mask_plastic] = E_Fmax_plastic[mask_plastic]
 
-    plt.show()
+    #plt.show()
 
     return velocity_y, F_single_min, F_single_max, E_Fmax
 
@@ -417,6 +417,37 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
 
 if __name__ == '__main__':
     # 参数定义
+
+    
+    # Yaoheba rock avalanche 2020
+    case_number = 6
+    #DEM_Volumn = np.array([1000,2000,4000,8000,10000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
+    DEM_depth = np.array([3.5,7.0,14.0,16.0, 1,])  # 通过DEM_Volumn计算DEM_depth（数值模拟）
+    #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
+    #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
+    #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
+    DEM_velocity = 11.8 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
+    DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
+    DEM_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
+    DEM_strength = 60e6 * np.ones(case_number)     # 花岗岩强度 Pa
+
+    # c_radius = np.array([0.45,0.75,1.05])
+    # r_radius = np.array([0.01,0.05,0.15])
+    # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
+    # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
+    radius_min = 0.3*np.ones(case_number)
+    radius_max = 1.2*np.ones(case_number)
+
+    ratio_solid = 0.61 * np.ones(case_number) # 固相体积分数0.61-0.68
+    impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
+
+    # Pier_shape = 'square', 'round'
+    Pier_shape = 'round'
+    Pier_width = 2.2 * np.ones(case_number)        # m
+    Pier_modulus = 30e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
+    Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
+    Pier_strength = 30e6 * np.ones(case_number)          # Pa 考虑应变率效应，放大系数为1.3828，C30混凝土静载强度:30 MPa
     '''
     # Choi et al. 2020参数
     DEM_depth = np.array([0.021, 0.026, 0.035, 0.031, 0.037, 0.046])# np.linspace(0.01, 0.06, num=6, endpoint=True)       # m
@@ -436,39 +467,7 @@ if __name__ == '__main__':
     Pier_modulus = 3.0e9* np.ones(case_number)    # Pa PMMA:3.0GPa (https://www.builditsolar.com/References/Glazing/physicalpropertiesAcrylic.pdf)
     Pier_miu = 0.3* np.ones(case_number)          # Poisson's ratio 
     Pier_strength = 50e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
-
     
-    # Yaoheba rock avalanche 2020
-    case_number = 5
-    DEM_Volumn = np.array([1000,2000,4000,8000,16000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
-
-    #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
-    #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 11.8 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
-    DEM_depth = compute_DEM_depth(DEM_Volumn)  # 通过DEM_Volumn计算DEM_depth（数值模拟）
-    DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
-    DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
-    DEM_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
-    DEM_strength = 160e6 * np.ones(case_number)     # 花岗岩强度 Pa
-
-    # c_radius = np.array([0.45,0.75,1.05])
-    # r_radius = np.array([0.01,0.05,0.15])
-    # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
-    # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.6*np.ones(case_number)
-    radius_max = 1.2*np.ones(case_number)
-
-    ratio_solid = 0.68 * np.ones(case_number) # 固相体积分数0.61-0.68
-    impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
-
-    # Pier_shape = 'square', 'round'
-    Pier_shape = 'round'
-    Pier_width = 2.2 * np.ones(case_number)        # m
-    Pier_modulus = 31e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
-    Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
-    Pier_strength = 30e6 * np.ones(case_number)          # Pa 考虑应变率效应，放大系数为1.3828，C30混凝土静载强度:30 MPa
-    '''
     # Wang et al. 2025参数
     DEM_depth = np.linspace(0.02, 0.09, num=8, endpoint=True)       # m
     case_number = len(DEM_depth)
@@ -488,7 +487,7 @@ if __name__ == '__main__':
     Pier_density = 2550* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
     Pier_miu = 0.35* np.ones(case_number)          # Poisson's ratio 
     Pier_strength = 10e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
-    
+    '''
 
     wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
     dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
@@ -520,8 +519,10 @@ if __name__ == '__main__':
 
     flow_time = np.ones_like(E_Fmax)  # s
     flow_volume_total = DEM_volume_flux * flow_time
+
     radius_avg = np.sqrt((radius_max**2 + radius_max*radius_min + radius_min**2)/3)
     DEM_impact_rate = np.round(ratio_solid * flow_volume_total / (4/3 * np.pi * (radius_avg**3 )))
+
     delta_t_DEMs = flow_time / DEM_impact_rate
     num_waves = np.maximum(np.ceil(t_contact_elastoplastic / delta_t_DEMs), 1).astype(int)
 
@@ -544,12 +545,12 @@ if __name__ == '__main__':
     print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s'   )      
     print('radius_min    =',   np.array2string(radius_min,                   separator=', ', precision=1), 'mm'    )      
     print('radius_max    =',   np.array2string(radius_max,                   separator=', ', precision=1), 'mm'    )      
-    print('F_min         =',   np.array2string(F_min,                        separator=', ', precision=2), 'N'     )      
-    print('F_max         =',   np.array2string(F_max,                        separator=', ', precision=2), 'N'     )      
-    print('E_Fmax        =',   np.array2string(E_Fmax,                       separator=', ', precision=2), 'N'     )      
-    print('total_force   =',   np.array2string(total_force,                  separator=', ', precision=2), 'N'     )
+    print('F_min         =',   np.array2string(F_min/1000,                   separator=', ', precision=2), 'kN'     )      
+    print('F_max         =',   np.array2string(F_max/1000,                   separator=', ', precision=2), 'kN'     )      
+    print('E_Fmax        =',   np.array2string(E_Fmax/1000,                  separator=', ', precision=2), 'kN'     )      
+    print('total_force   =',   np.array2string(total_force/1000,             separator=', ', precision=2), 'kN'     )
 
-    plt.show()
+    #plt.show()
 
 
     ''' 

@@ -22,7 +22,7 @@ if __name__ == '__main__':
     DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.2 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
     DEM_strength = 50e6 * np.ones(case_number)     # 花岗岩强度 Pa
-    DEM_radius = 1.2*np.ones(case_number)
+    DEM_radius = 0.6*np.ones(case_number)
     DEM_density = 2500      # kg/m3  花岗岩密度2500kg/m3
     DEM_mass = DEM_density * 4/3*np.pi* DEM_radius**3
 
