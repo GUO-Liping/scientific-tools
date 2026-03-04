@@ -417,7 +417,7 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
 
 if __name__ == '__main__':
     # 参数定义
-    
+    '''
     # Choi et al. 2020参数
     DEM_depth = np.array([0.021, 0.026, 0.035, 0.031, 0.037, 0.046])# np.linspace(0.01, 0.06, num=6, endpoint=True)       # m
     case_number = len(DEM_depth)
@@ -437,7 +437,7 @@ if __name__ == '__main__':
     Pier_miu = 0.3* np.ones(case_number)          # Poisson's ratio 
     Pier_strength = 50e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
 
-    '''
+    
     # Yaoheba rock avalanche 2020
     case_number = 5
     DEM_Volumn = np.array([1000,2000,4000,8000,16000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
@@ -468,11 +468,11 @@ if __name__ == '__main__':
     Pier_modulus = 31e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
     Pier_strength = 30e6 * np.ones(case_number)          # Pa 考虑应变率效应，放大系数为1.3828，C30混凝土静载强度:30 MPa
-    
+    '''
     # Wang et al. 2025参数
-    DEM_depth = np.linspace(0.03, 0.10, num=8, endpoint=True)       # m
+    DEM_depth = np.linspace(0.02, 0.09, num=8, endpoint=True)       # m
     case_number = len(DEM_depth)
-    DEM_velocity = 2.2* np.ones(case_number)      # m/s
+    DEM_velocity = 1.8* np.ones(case_number)      # m/s
     DEM_density = 2550* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
     DEM_modulus = 60e9* np.ones(case_number)      # Pa  玻璃弹性模量60GPa
     DEM_miu = 0.25* np.ones(case_number)          # Poisson's ratio  玻璃泊松比0.25
@@ -488,7 +488,7 @@ if __name__ == '__main__':
     Pier_density = 2550* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
     Pier_miu = 0.35* np.ones(case_number)          # Poisson's ratio 
     Pier_strength = 10e6* np.ones(case_number)          # Pa PMMA:50 - 77 MPa
-    '''
+    
 
     wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
     dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
