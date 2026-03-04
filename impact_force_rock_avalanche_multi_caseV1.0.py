@@ -471,14 +471,14 @@ if __name__ == '__main__':
     # Wang et al. 2025参数
     DEM_depth = np.linspace(0.03, 0.10, num=8, endpoint=True)       # m
     case_number = len(DEM_depth)
-    DEM_velocity = 1.2* np.ones(case_number)      # m/s
+    DEM_velocity = 2.2* np.ones(case_number)      # m/s
     DEM_density = 2550* np.ones(case_number)      # kg/m3  玻璃密度2500kg/m3
     DEM_modulus = 60e9* np.ones(case_number)      # Pa  玻璃弹性模量60GPa
     DEM_miu = 0.25* np.ones(case_number)          # Poisson's ratio  玻璃泊松比0.25
     DEM_strength = 10e6* np.ones(case_number)       # 屈服强度 70MPa
     radius_min = 0.004* np.ones(case_number)   # m
     radius_max = 0.004* np.ones(case_number)   # m
-    ratio_solid = np.pi/6* np.ones(case_number) # 固相体积分数0.45
+    ratio_solid = np.pi/6* np.ones(case_number) # 固相体积分数0.45, np.pi/6
     impact_angle_deg = 90* np.ones(case_number)   # 冲击角度 °
 
     Pier_shape = 'round'
