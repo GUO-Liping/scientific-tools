@@ -406,11 +406,11 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
     
        
     # 绘制前几条单个波形
-    for k in range(len(waveforms)):
-        plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
-    # 绘制叠加波形
-    plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
-    plt.legend()
+    #for k in range(len(waveforms)):
+    #    plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
+    ## 绘制叠加波形
+    #plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
+    #plt.legend()
     
     return max_total_waves
 
@@ -420,9 +420,9 @@ if __name__ == '__main__':
 
     
     # Yaoheba rock avalanche 2020
-    case_number = 6
+    case_number = 16
     #DEM_Volumn = np.array([1000,2000,4000,8000,10000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
-    DEM_depth = np.array([3.5,7.0,14.0,16.0, 1,])  # 通过DEM_Volumn计算DEM_depth（数值模拟）
+    #DEM_depth = np.array([3.5,7.0,14.0,16.0, 1,])  # 通过DEM_Volumn计算DEM_depth（数值模拟）
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
@@ -437,7 +437,7 @@ if __name__ == '__main__':
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
     radius_min = 0.3*np.ones(case_number)
-    radius_max = 1.2*np.ones(case_number)
+    radius_max = 0.3*np.ones(case_number)
 
     ratio_solid = 0.61 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
@@ -494,7 +494,7 @@ if __name__ == '__main__':
 
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
-    DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
+    #DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
     C_JG_DEM = 1.297*np.exp(0.736*DEM_miu)
     C_JG_Pier = 1.297*np.exp(0.736*Pier_miu)
@@ -518,11 +518,11 @@ if __name__ == '__main__':
     print(f'\tF_min256 = {np.round(F_min,3)}, \n\tF_max = {np.round(F_max,3)}, \n\tforce_average = {np.round(E_Fmax,3)}', 'N')
 
     flow_time = np.ones_like(E_Fmax)  # s
-    flow_volume_total = DEM_volume_flux * flow_time
+    #flow_volume_total = DEM_volume_flux * flow_time
 
     radius_avg = np.sqrt((radius_max**2 + radius_max*radius_min + radius_min**2)/3)
-    DEM_impact_rate = np.round(ratio_solid * flow_volume_total / (4/3 * np.pi * (radius_avg**3 )))
-
+    #DEM_impact_rate = np.round(ratio_solid * flow_volume_total / (4/3 * np.pi * (radius_avg**3 )))
+    DEM_impact_rate = np.linspace(1,600, case_number, endpoint=True)
     delta_t_DEMs = flow_time / DEM_impact_rate
     num_waves = np.maximum(np.ceil(t_contact_elastoplastic / delta_t_DEMs), 1).astype(int)
 
@@ -536,9 +536,9 @@ if __name__ == '__main__':
     total_force = gamma_time * gamma_space * angle_impact * E_Fmax
 
     print('DEM_impact_rate=',  np.array2string(DEM_impact_rate,              separator=', ', precision=1), 's^{-1}')
-    print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=3), 'm'     )      
+    #print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=3), 'm'     )      
     print('ratio_solid   =',   np.array2string(ratio_solid,                  separator=', ', precision=2), ' '     )      
-    print('DEM_volume_flux =', np.array2string(DEM_volume_flux,              separator=', ', precision=1), 'm^3/s' )      
+    #print('DEM_volume_flux =', np.array2string(DEM_volume_flux,              separator=', ', precision=1), 'm^3/s' )      
     print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' '     )      
     print('delta_t_DEMs  =',   np.array2string(delta_t_DEMs*1000,            separator=', ', precision=3), 'ms'    )      
     print('t_contact     =',   np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=3), 'ms'    )      

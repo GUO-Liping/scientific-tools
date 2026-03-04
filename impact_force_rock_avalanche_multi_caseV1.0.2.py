@@ -322,7 +322,7 @@ def compute_Thornton_contact_force(radius_min, radius_max, modulus_eq, dem_densi
     E_Fmax[mask_elastic] = E_Fmax_elastic[mask_elastic]
     E_Fmax[mask_plastic] = E_Fmax_plastic[mask_plastic]
 
-    plt.show()
+    #plt.show()
 
     return velocity_y, F_single_min, F_single_max, E_Fmax
 
@@ -407,12 +407,12 @@ def compute_gamma_time(wave_type,t_contact,delta_t_DEMs,amplitude=1, num_points=
     
        
     # 绘制前几条单个波形
-    print('waveforms=', waveforms)
-    for k in range(len(waveforms)):
-        plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
-    # 绘制叠加波形
-    plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
-    plt.legend()
+    #print('waveforms=', waveforms)
+    #for k in range(len(waveforms)):
+    #    plt.plot(time_values, waveforms[k], alpha=0.6, label=f'Wave {k+1}')
+    ## 绘制叠加波形
+    #plt.plot(time_values, total_wave, '-', linewidth=3.0, label='Sum')
+    #plt.legend()
     
     return max_total_waves
 
@@ -422,13 +422,13 @@ if __name__ == '__main__':
 
     
     # Yaoheba rock avalanche 2020
-    case_number = 6
-    #DEM_Volumn = np.array([1000,2000,4000,8000,10000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
-    DEM_depth = np.array([6.5, 7.0, 14.0, 16.0, 18.0, 20.0])  # 通过DEM_Volumn计算DEM_depth（数值模拟）
+    case_number = 5
+    DEM_Volumn = np.array([1000,2000,4000,8000,16000])# np.linspace(1000, 16000, case_number)      # 碎屑流方量：m^3
+    DEM_depth = compute_DEM_depth(DEM_Volumn)  # 通过DEM_Volumn计算DEM_depth（数值模拟）
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 11.8 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_velocity = 10.0 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
     DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
@@ -438,16 +438,16 @@ if __name__ == '__main__':
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = 0.3*np.ones(case_number)
+    radius_min = np.linspace(0.2, 1.2, case_number, endpoint=False)
     radius_max = 1.0*np.ones(case_number)
 
-    ratio_solid = 0.61 * np.ones(case_number) # 固相体积分数0.61-0.68
+    ratio_solid = 0.60 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
 
     # Pier_shape = 'square', 'round'
     Pier_shape = 'round'
     Pier_width = 2.2 * np.ones(case_number)        # m
-    Pier_modulus = 30e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
+    Pier_modulus = 31e9 * np.ones(case_number)    # Pa 混凝土弹性模量:31GPa
     Pier_miu = 0.2 * np.ones(case_number)          # 混凝土Poisson's ratio ：0.2
     Pier_strength = 30e6 * np.ones(case_number)          # Pa 考虑应变率效应，放大系数为1.3828，C30混凝土静载强度:30 MPa
     '''
@@ -492,14 +492,14 @@ if __name__ == '__main__':
     '''
 
     wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
-    dist_type = 'uniform'  # 'uniform','normal','exponential','weibull_l','weibull_r'
+    dist_type = 'weibull_l'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
     DEM_volume_flux = compute_effective_volume_flux(Pier_width, DEM_depth, radius_max, DEM_velocity)    # m^3/s
 
-    C_JG_DEM = 1.297*np.exp(0.736*DEM_miu)
-    C_JG_Pier = 1.297*np.exp(0.736*Pier_miu)
+    C_JG_DEM  = 1  # 1.297*np.exp(0.736*DEM_miu)
+    C_JG_Pier = 1  # 1.297*np.exp(0.736*Pier_miu)
     sigma_y = np.minimum(C_JG_DEM * DEM_strength, C_JG_Pier * Pier_strength)
 
     # 计算冲击时间
@@ -538,11 +538,9 @@ if __name__ == '__main__':
 
     total_force = gamma_time * gamma_space * angle_impact * E_Fmax
 
-    print('DEM_impact_rate=',  np.array2string(DEM_impact_rate,              separator=', ', precision=1), 's^{-1}')
     #print('DEM_depth     =',   np.array2string(DEM_depth,                    separator=', ', precision=3), 'm'     )      
     print('ratio_solid   =',   np.array2string(ratio_solid,                  separator=', ', precision=2), ' '     )      
     #print('DEM_volume_flux =', np.array2string(DEM_volume_flux,              separator=', ', precision=1), 'm^3/s' )      
-    print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' '     )      
     print('delta_t_DEMs  =',   np.array2string(delta_t_DEMs*1000,            separator=', ', precision=3), 'ms'    )      
     print('t_contact     =',   np.array2string(t_contact_elastoplastic*1000, separator=', ', precision=3), 'ms'    )      
     print('DEM_velocity  =',   np.array2string(DEM_velocity,                 separator=', ', precision=5), 'm/s'   )      
@@ -551,9 +549,11 @@ if __name__ == '__main__':
     print('F_min         =',   np.array2string(F_min/1000,                   separator=', ', precision=2), 'kN'     )      
     print('F_max         =',   np.array2string(F_max/1000,                   separator=', ', precision=2), 'kN'     )      
     print('E_Fmax        =',   np.array2string(E_Fmax/1000,                  separator=', ', precision=2), 'kN'     )      
+    print('num_waves     =',   np.array2string(num_waves,                    separator=', ', precision=1), ' '     )      
+    print('DEM_impact_rate=',  np.array2string(DEM_impact_rate,              separator=', ', precision=1), 's^{-1}')
     print('total_force   =',   np.array2string(total_force/1000,             separator=', ', precision=2), 'kN'     )
 
-    plt.show()
+    #plt.show()
 
 
     ''' 
