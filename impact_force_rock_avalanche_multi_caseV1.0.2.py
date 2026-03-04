@@ -428,7 +428,7 @@ if __name__ == '__main__':
     #  Prticle size: 0.3-0.6: 16000m^3方量：20m；8000m^3方量：13.5-14.5m/12.7m/s；4000m^3方量：6.4-8.3m/12m/s；2000m^3方量：3.9-4.9m/11m/s；1000m^3方量：2.9-3.45m/10.8m/s
     #  Prticle size: 0.6-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
     #  Prticle size: 0.3-1.2: 16000m^3方量：20m；8000m^3方量：12m；4000m^3方量：8m；2000m^3方量：4m；1000m^3方量：2.4m
-    DEM_velocity = 10.0 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
+    DEM_velocity = 11.8 * np.ones(case_number)  # (11.8 + (9.8-11.8)/(8000-1000) * (DEM_Volumn-1000))     # m/s
     DEM_density = 2500 * np.ones(case_number)      # kg/m3  花岗岩密度2500kg/m3
     DEM_modulus = 55e9 * np.ones(case_number)      # Pa   花岗岩弹性模量50-100GPa
     DEM_miu = 0.20 * np.ones(case_number)          # Poisson's ratio  花岗岩泊松比0.1-0.3
@@ -438,8 +438,8 @@ if __name__ == '__main__':
     # r_radius = np.array([0.01,0.05,0.15])
     # radius_min = np.repeat(c_radius, 3) - np.tile(r_radius, 3)  # m
     # radius_max = np.repeat(c_radius, 3) + np.tile(r_radius, 3)  # m
-    radius_min = np.linspace(0.2, 1.2, case_number, endpoint=False)
-    radius_max = 1.0*np.ones(case_number)
+    radius_min = 0.3*np.ones(case_number)
+    radius_max = 1.2*np.ones(case_number)
 
     ratio_solid = 0.60 * np.ones(case_number) # 固相体积分数0.61-0.68
     impact_angle_deg = 90 * np.ones(case_number)   # 冲击角度 °
@@ -492,7 +492,7 @@ if __name__ == '__main__':
     '''
 
     wave_type = 'triangle'     # 脉冲型式：'sine'，'triangle'，'square'，'sawtooth'，'gaussian', 'exponential'/'shock','trapezoidal'
-    dist_type = 'weibull_l'  # 'uniform','normal','exponential','weibull_l','weibull_r'
+    dist_type = 'weibull_r'  # 'uniform','normal','exponential','weibull_l','weibull_r'
 
     # 调整半径
     radius_min, radius_max = adjust_radius(radius_min, radius_max)
