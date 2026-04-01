@@ -322,7 +322,7 @@ def align_river_to_minutes(psd_minutes_index, time_river, depth_river):
 
 
 # =============================================================================
-# 3) 用户配置（建议只改这里）
+# 3) 用户配置
 # =============================================================================
 DATA_FILE = r"65BC19EF.158.BHZ"
 RIVER_XLSX = r"MT_river_height.xlsx"
