@@ -70,4 +70,4 @@ for i in range(0, len(piv_frames)-piv_interval, piv_interval):
     plt.savefig(os.path.join(output_folder, f"piv_{i:04d}.png"))
     plt.close()
 
-print("✅ PIV 分析完成，结果保存在:", output_folder)
+print("PIV 分析完成，结果保存在:", output_folder)
