@@ -4,11 +4,13 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from torchvision.models.optical_flow import Raft_Large_Weights, raft_large, Raft_Small_Weights, raft_small
+# from torchvision.io import read_video
+
 
 # ====================== 配置 ======================
-video_path = 'DJI_20260427191850_0320_D.mp4' # '126-tower60csphrer2cmdeg37.5m4500rho476vo5.28T0.0share7940g-2104-2980-1st.avi' 
-frame_1st = 4336
-frame_2nd = 4337
+video_path = '126-tower60csphrer2cmdeg37.5m4500rho476vo5.28T0.0share7940g-2104-2980-1st.avi' #  'DJI_20260427191850_0320_D.mp4'
+frame_1st = 5000 # 4336
+frame_2nd = 6000 # 4337
 frame_rate = 120.0
 
 print(torch.cuda.is_available())
@@ -80,9 +82,9 @@ frame_b_tensor = frame_b_tensor.unsqueeze(0).to(device)
 print("图像加载完成")
 
 # ====================== 2. 加载 RAFT 模型 ======================
-print("加载 RAFT Small 模型...")
-weights = Raft_Small_Weights.DEFAULT
-model = raft_small(weights=weights).to(device)
+print("加载 RAFT Large 模型...")
+weights = Raft_Large_Weights.DEFAULT
+model = raft_large(weights=weights).to(device)
 model.eval()
 
 
