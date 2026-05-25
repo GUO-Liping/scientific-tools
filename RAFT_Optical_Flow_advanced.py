@@ -6,7 +6,6 @@ from torchvision.models.optical_flow import Raft_Large_Weights, raft_large, Raft
 
 
 # ====================== 配置区域 ======================
-# ================== 模式选择 ==================
 USE_VIDEO = True                    # True: 从视频读取帧    False: 直接读取图片
 VIDEO_BACKEND = "decord"            # "decord"在 USE_VIDEO=True 时生效
 
@@ -17,16 +16,16 @@ FRAME1_PATH = 'frame_4335_crop.png'
 FRAME2_PATH = 'frame_4336_crop.png'
 
 
-crop_frame = True  # 画面裁剪
-scale_frame = True  # 画面缩放
-pad_frame = True    # 画面补充/RAFT要求
+crop_frame = True     # 画面裁剪
+scale_frame = True    # 画面缩放
+pad_frame = True      # 画面补充/RAFT要求
 enhance_frame = False # 画质提升
 
 # ================== 帧参数 ==================
 FRAME_1ST = 200
 FRAME_2ND = 201
-FRAME_RATE = 500.0
-PIXELS_PER_METER = 1461 / 0.6
+FRAME_RATE = 120.0
+PIXELS_PER_METER = 890/0.6  # 1461 / 0.6
 DT = (FRAME_2ND - FRAME_1ST) / FRAME_RATE
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,10 +34,10 @@ RAFT_model = 'large'  # 'large' or  'small'
 # ================== cv2帧图像增强处理参数 ==================
 ENHANCE_PARAMS = {
     'clip_limit': 2.0,          # CLAHE 图像增强算法中对比度限制（越大增强越强，建议 2.0~6.0）
-    'tile': 16,                  # CLAHE 图像增强算法中的分块大小（tileGridSize），越小越局部增强，通常8或16
+    'tile': 16,                 # CLAHE 图像增强算法中的分块大小（tileGridSize），越小越局部增强，通常8或16
     'gamma': 1.0,               # Gamma 校正系数（>1 变亮，<1 变暗）
     'sharpen': True,            # 是否开启锐化（提升颗粒纹理）
-    'denoise_strength': 2      # 去噪强度（fastNlMeansDenoisingColored 的 h 参数），范围10~25，越大去噪越强，但可能丢失细节
+    'denoise_strength': 2       # 去噪强度（fastNlMeansDenoisingColored 的 h 参数），范围10~25，越大去噪越强，但可能丢失细节
 }
 
 POSTPROCESS_THRESHOLD = 0.1  # 用于过滤小于速度峰值该倍数的速度场，数值范围0-1.0
@@ -51,7 +50,7 @@ def read_frame_decord(video_path, frame_idx):
         from decord import VideoReader, cpu
         vr = VideoReader(video_path, ctx=cpu(0))
         frame = vr[frame_idx].asnumpy()                    # RGB
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)    # 转为 BGR
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)     # 转为 BGR
         return frame
     except ImportError:
         print("未安装 decord，请执行: pip install decord")
@@ -61,7 +60,7 @@ def read_frame_decord(video_path, frame_idx):
         return None
 
 def load_two_frames():
-    """统一加载两帧：支持图片模式和视频模式"""
+    """加载两帧：支持图片模式和视频模式"""
     if not USE_VIDEO:
         # 图片模式
         frame_a = cv2.imread(FRAME1_PATH)
@@ -210,7 +209,7 @@ def visualize_results(frame_a_color, frame_b_color, u_phys, v_phys, magnitude_ph
     y_idx, x_idx = np.mgrid[0:h:step, 0:w:step]
     ax4.imshow(cv2.cvtColor(frame_b_color, cv2.COLOR_BGR2RGB), origin='upper')
     quiv = ax4.quiver(x_idx, y_idx, u[y_idx, x_idx], v[y_idx, x_idx],
-                      magnitude_phys[y_idx, x_idx], cmap='RdBu_r', scale=100, width=0.003)
+                      magnitude_phys[y_idx, x_idx], cmap='RdBu_r', scale=300, width=0.003)
     ax4.set_title('Velocity Vector Field')
     plt.colorbar(quiv, ax=ax4, fraction=0.046, pad=0.04)
 
@@ -242,6 +241,9 @@ def main():
     if frame_a_origin is None or frame_b_origin is None:
         print(f"帧画面读取失败")
 
+    # 保存读取到的原始帧
+    cv2.imwrite(f"frame_{FRAME_1ST}_origin.jpg", frame_a_origin)
+    cv2.imwrite(f"frame_{FRAME_2ND}_origin.jpg", frame_b_origin)
     print(f"读取成功，原始尺寸: {frame_a_origin.shape}")
 
     # 大图像裁剪
