@@ -11,11 +11,24 @@ OBS 推移质 PSD 处理（Luong-style）+ 可视化
 5) 读取水位 Excel → 统一到 UTC → 裁剪到地震处理时间窗 → 对齐到 strict 1-min
 6) 反演 qb（strict 1-min）并绘图（PSD 热力图 + 水深叠加；qb 时间序列）
 
+【主要输入】
+- 当前目录下的 *.BHZ 文件：OBS 垂向分量 SAC/miniseed 等 ObsPy 可读波形文件
+- MT_river_height_pad.xlsx：至少包含 time 和 height 两列
+
+【主要输出】
+- output_files_v1.4.1/river_depth.png：水深时间序列
+- output_files_v1.4.1/PSD_heatmap.png：PSD 频率-时间热力图，并叠加水深
+- output_files_v1.4.1/qb.png：反演床载通量 Qb 时间序列
+- output_files_v1.4.1/OBS_results.xlsx：水深、qb、PSD 频带指标
+
 【注意】
 - fs=100 Hz ⇒ Nyquist=50 Hz，频带上限必须 ≤ 50
 - NPERSEG=2^14=163.84s，STEP=81.92s（50% overlap），每小时≈42个“Luong-minute”
   所以 Luong-minute 不是 60/min，而是≈42/h
 - 反演强依赖时间轴一致性：PSD（UTC）与水位（UTC）必须严格对齐
+- 当前版本逐小时做响应校正和 PSD。strict 1-min PSD 在每个小时切片内部取窗，
+  因此每小时前后约 NPERSEG/2 个样本可能因为窗长不足变成 NaN；如需减少小时边界
+  缺口，建议对小时切片增加半窗长度的重叠缓冲，或改为对完整连续 trace 生成 strict PSD。
 """
 
 # =============================================================================
@@ -28,12 +41,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from scipy.signal import welch
-from matplotlib.collections import LineCollection
 
 # ---- seismic-bedload ----
 from seismic_bedload import SaltationModel
 from seismic_bedload.utils import log_raised_cosine_pdf
-import time
 
 import os
 OUT_DIR = "output_files_v1.4.1"
@@ -47,23 +58,31 @@ DATA_FILES = sorted(glob.glob("*.BHZ"))   # 读入多个BHZ文件（指定路径
 RIVER_XLSX = r"MT_river_height_pad.xlsx"
 
 # ---- 频带设置 ----
+# BAND_* 用于输出 PSD 频带指标和热力图显示；INV_* 用于 SaltationModel 反演。
+# 注意所有频率上限都必须小于等于 Nyquist 频率（fs/2）。
 BED_BOTTOM = 710.6  # MT = 710.6, PZ = 2895.0
 BAND_FMIN, BAND_FMAX = 2.0, 30.0
 HEATMAP_FMIN_SHOW, HEATMAP_FMAX_SHOW = BAND_FMIN, BAND_FMAX
 
 INV_FMIN, INV_FMAX = 2.0, 20.0  # 反演频带（可后续改回 20Hz）
 
-# 时间窗参数
+# 时间窗参数：
+# USE_AUTO_TIME_RANGE=True 时直接使用波形文件完整覆盖范围，N_days_delay/N_days_process 不生效。
+# USE_AUTO_TIME_RANGE=False 时从数据起点向后推迟 N_days_delay 天，再处理 N_days_process 天。
 USE_AUTO_TIME_RANGE = True
 N_days_delay = 0     # 向后推迟 0 天
 N_days_process = 12    # 需要处理的数据时长：12天
 
 # ---- Luong Welch 参数 ----
+# NPERSEG_LUONG 决定单个 PSD 窗长；fs=100 Hz 时 2**14 对应 163.84 s。
+# STEP 为滑动 Welch 的窗间隔；这里取半窗实现 50% overlap。
 NPERSEG_LUONG = 2**14
 STEP = NPERSEG_LUONG // 2  # 50% overlap
 
 
 # ---- 仪器参数 ----
+# PAZ 用于 ObsPy Trace.simulate() 去仪器响应：
+# 输入 counts，remove_sensitivity=True 后输出近似地面速度 m/s。
 ADC_SENS = 1.6777e6
 PAZ = {
     "poles": [-30.61, -15.8, -0.1693, -0.09732, -0.03333],
@@ -73,6 +92,8 @@ PAZ = {
 }
 
 # ---- MT模型参数----
+# D/D50/sigma/pD 描述粒径分布；W/theta/r0 等为 SaltationModel 的场地和河道参数。
+# 这些参数直接影响 qb 绝对量级，换测站或河段时必须重新核对。
 D = 0.08
 D50 = 0.02
 sigma = 0.45
@@ -132,6 +153,9 @@ def read_river_from_excel(
     【返回】
     time_river(UTC), depth_river(np.ndarray)
     """
+    if bed_elev is None:
+        raise ValueError("[ERROR] bed_elev must be provided to convert water level to depth.")
+
     df = pd.read_excel(xlsx, sheet_name=sheet)
 
     # 只取两列（防止 Excel 里其它列干扰）
@@ -141,13 +165,17 @@ def read_river_from_excel(
     # 解析时间（不在这里强制 utc=True，因为你有 utc/local 两种情况）
     t = pd.to_datetime(df["time"], errors="coerce")
 
-    # 时区统一到 UTC（这是后续对齐的关键）
-    if utc:
-        # Excel 时间没有时区信息时：直接当作 UTC
-        t = t.dt.tz_localize("UTC")
+    # 时区统一到 UTC（这是后续对齐的关键）。
+    # Excel 通常读出来是 naive datetime；如果源表已经带时区，也兼容处理。
+    if getattr(t.dt, "tz", None) is None:
+        if utc:
+            # Excel 时间没有时区信息时：直接当作 UTC
+            t = t.dt.tz_localize("UTC")
+        else:
+            # Excel 时间为本地时间（如北京时间），先 localize，再转 UTC
+            t = t.dt.tz_localize(local_tz).dt.tz_convert("UTC")
     else:
-        # Excel 时间为本地时间（如北京时间），先 localize，再转 UTC
-        t = t.dt.tz_localize(local_tz).dt.tz_convert("UTC")
+        t = t.dt.tz_convert("UTC")
 
     # 水位转数值并计算河深
     h = pd.to_numeric(df["height"], errors="coerce").to_numpy(dtype=float)
@@ -196,16 +224,28 @@ def qc_print_time_coverage(name, idx, t0=None, t1=None):
     idx: DatetimeIndex
     t0/t1: 可选对比目标窗口（Timestamp）
     """
+    if len(idx) == 0:
+        print(f"[QC] {name}: EMPTY | n=0")
+        if t0 is not None and t1 is not None:
+            print(f"[QC] target: {t0} -> {t1}")
+        return
+
     print(f"[QC] {name}: {idx.min()} -> {idx.max()} | n={len(idx)}")
     if t0 is not None and t1 is not None:
         print(f"[QC] target: {t0} -> {t1}")
 
 
 # =============================================================================
-# 2) 地震信号处理函数（去趋势/去响应/PSD）
+# 3) 地震信号处理函数（去趋势/去响应/PSD）
 # =============================================================================
 def detrend_demean_stream(st_in: Stream) -> Stream:
-    """合并间断（尽量插值填补）→ 线性去趋势 → 去均值。"""
+    """
+    合并间断（尽量插值填补）→ 线性去趋势 → 去均值。
+
+    说明：
+    - merge(method=1, fill_value="interpolate") 会对小间断做线性插值，适合保持连续处理；
+    - 若存在长时间缺测，插值可能低估缺口附近 PSD，建议先做缺测记录/QC。
+    """
     st = st_in.copy()
     try:
         st.merge(method=1, fill_value="interpolate")
@@ -220,6 +260,9 @@ def remove_response_to_velocity(st_in: Stream, paz: dict):
     """
     去仪器响应：counts → m/s
     pre_filt 用于稳定去响应（高低频端做缓冲滤波）。
+
+    pre_filt = (低频停止, 低频通过, 高频通过, 高频停止)。
+    高频端按 Nyquist 的 0.7/0.9 设置，避免在接近 Nyquist 处放大响应误差。
     """
     st = st_in.copy()
     fs = st[0].stats.sampling_rate
@@ -232,7 +275,12 @@ def remove_response_to_velocity(st_in: Stream, paz: dict):
 
 def sliding_welch_psd(x, fs, nperseg, step):
     """
-    滑动 Welch PSD（每个窗口独立 welch，nperseg 固定）
+    滑动 Welch PSD（每个窗口独立 welch，nperseg 固定）。
+
+    注意：
+    - 这里外层已经切出了长度 nperseg 的滑动片段，所以 welch 内部 noverlap=0；
+    - 外层 step 控制相邻 PSD 窗口之间的重叠程度。
+
     返回：
       f          : 频率轴
       psd_arr    : shape=(nwin, nfreq)
@@ -269,7 +317,11 @@ def sliding_welch_psd(x, fs, nperseg, step):
 
 
 def strict_minute_index(t_start_utc, t_end_utc):
-    """生成严格 1-min UTC 时间轴：[start, end)"""
+    """
+    生成严格 1-min UTC 时间轴：[start, end)。
+
+    使用左闭右开区间可以避免相邻处理段在整分钟边界重复一个时间点。
+    """
     t0 = pd.Timestamp(t_start_utc.datetime, tz="UTC").floor("min")
     t1 = pd.Timestamp(t_end_utc.datetime,   tz="UTC").ceil("min")
     return pd.date_range(t0, t1, freq="1min", tz="UTC", inclusive="left")
@@ -282,6 +334,11 @@ def strict_1min_psd_from_trace(tr_vel, f_ref, nperseg, fmin=None, fmax=None):
     - 以每一分钟的“中心”作为采样（minute + 30s），取长度 nperseg 的数据窗
     - 对每个窗做 welch（no overlap），得到该分钟 PSD
     - 对超界/缺数据的分钟返回 NaN（但通常只有边界少量）
+
+    重要限制：
+    - 如果 tr_vel 是逐小时切出来的片段，则每个小时片段的前后半窗都会取不到完整数据。
+      这会让每小时边界附近出现 NaN，而不是只有整个数据集的首尾有 NaN。
+      若需要连续分钟结果，应给小时片段额外加半窗重叠缓冲，或对完整 trace 统一计算。
 
     【返回】
     psd_1min: DataFrame(index=minute_utc, columns=f_ref)  (单位：线性 PSD)
@@ -352,6 +409,8 @@ def band_index_from_psd(psd_minute_df, fmin, fmax):
     计算一个频带的 PSD 指标（作为 proxy）：
     - mean: 频带内各频点 PSD 均值
     - int : 对频率积分（梯形积分）
+
+    输出为线性 PSD 指标，不是 dB。若用于统计回归，请保持和后续模型的单位一致。
     """
     f = psd_minute_df.columns.to_numpy(dtype=float)
     idx = (f >= fmin) & (f <= fmax)
@@ -377,7 +436,14 @@ def align_river_to_minutes(psd_minutes_index, time_river, depth_river):
     1) 先把河深序列 resample 到 1min（mean）
     2) 用 time 插值补齐缺失（两端也补）
     3) reindex 到 PSD 分钟轴，再做一次插值（保证完全同轴）
+
+    注意：
+    - limit_direction="both" 会外推到两端；如果水位数据离地震窗口太远，
+      外推会掩盖真实缺测。调用前应先 crop，并检查覆盖范围。
     """
+    if len(time_river) == 0:
+        raise ValueError("[ERROR] River series is empty after cropping. Check Excel time zone and time range.")
+
     river = pd.Series(depth_river, index=time_river).sort_index()
 
     # 先把水位自身变成 1-min（方便后续对齐）
@@ -394,7 +460,9 @@ def align_river_to_minutes(psd_minutes_index, time_river, depth_river):
 # 4) 主程序：读取地震数据 + 检查时间窗 + 绘制选取的原始数据
 # =============================================================================
 st = Stream()
-from obspy import read
+
+if len(DATA_FILES) == 0:
+    raise FileNotFoundError("[ERROR] No *.BHZ files found in current working directory.")
 
 for f in DATA_FILES:
     try:
@@ -407,6 +475,11 @@ for f in DATA_FILES:
         print(f"[SKIP] {f} -> {e}")
         continue
 
+if len(st) == 0:
+    raise RuntimeError("[ERROR] All input waveforms failed to load. Check file format and paths.")
+
+# ObsPy merge 会把同一台站/通道的连续 trace 合并为一条；间断处用插值补齐。
+# 如果数据来自多个台站或多个通道，这里只取 st[0] 会丢掉其它 trace，需要先筛选台站/通道。
 st.merge(method=1, fill_value="interpolate")
 
 tr_full = st[0]
@@ -414,8 +487,12 @@ fs = tr_full.stats.sampling_rate
 fN = fs / 2.0
 print(f"[INFO] fs={fs} Hz, Nyquist={fN} Hz")
 
-if BAND_FMAX > fN:
-    raise ValueError(f"[ERROR] BAND_FMAX={BAND_FMAX} exceeds Nyquist={fN}.")
+if max(BAND_FMAX, HEATMAP_FMAX_SHOW, INV_FMAX) > fN:
+    raise ValueError(
+        "[ERROR] Frequency upper limit exceeds Nyquist. "
+        f"Nyquist={fN}, BAND_FMAX={BAND_FMAX}, "
+        f"HEATMAP_FMAX_SHOW={HEATMAP_FMAX_SHOW}, INV_FMAX={INV_FMAX}."
+    )
 
 # ---- 处理时间窗（UTC）----
 T_GLOBAL_START = tr_full.stats.starttime
@@ -442,6 +519,8 @@ if T_GLOBAL_START < tr_full.stats.starttime or T_GLOBAL_END > tr_full.stats.endt
 
 '''
 # --------- 只取窗口数据（最关键：先 trim，在绘图）---------
+# 若要启用本 QC 绘图块，请取消三引号注释；计时需要 import time。
+import time
 
 time_plot_start = time.time()
 st_win = st.copy().trim(T_GLOBAL_START, T_GLOBAL_END)
@@ -478,7 +557,6 @@ print("total time for plot raw data = ", time_plot_end - time_plot_start, 's')
 # 5) PSD 主循环：逐小时处理（Luong-minute）
 # =============================================================================
 all_minutes_band = []
-all_minutes_fullspec = []
 all_strict_1min_fullspec = []
 f_ref = None
 
@@ -486,7 +564,8 @@ for ih in range(N_HOURS):
     t1 = T_GLOBAL_START + ih * 3600
     t2 = t1 + 3600
 
-    # 取这一小时的原始数据
+    # 取这一小时的原始数据。
+    # 注意：ObsPy slice 默认包含端点，整点附近可能多 1 个样本；对 Welch 影响很小。
     st_seg = st.slice(t1, t2)
 
     # 数据过短：跳过（会导致后面 strict 1-min 有 NaN，这是正常的）
@@ -495,7 +574,8 @@ for ih in range(N_HOURS):
         print(f"[WARN] Empty/too short segment: {t1} - {t2}, npts={npts}, skip.")
         continue
 
-    # 预处理：去趋势去均值 → 去响应得到速度
+    # 预处理：去趋势去均值 → 去响应得到速度。
+    # 这里按小时单独去响应，计算量较低；代价是小时边界处滤波/窗函数可能出现边缘效应。
     st_seg = detrend_demean_stream(st_seg)
     st_vel, _ = remove_response_to_velocity(st_seg, PAZ)
 
@@ -503,7 +583,8 @@ for ih in range(N_HOURS):
     x = trv.data.astype(np.float64)
     x -= np.mean(x)
 
-    # 滑动 Welch
+    # Luong-style 滑动 Welch：每小时内约 42 个窗口中心。
+    # 这些窗口中心再 floor 到分钟，因此不是严格每分钟一个 PSD。
     f, psd_arr, times_center = sliding_welch_psd(x, fs, NPERSEG_LUONG, STEP)
     if f is None:
         print(f"[WARN] nwin<=0: {t1} - {t2}, skip.")
@@ -517,9 +598,12 @@ for ih in range(N_HOURS):
         tc = t0 + (i0 + NPERSEG_LUONG / 2) / fs
         times_center[i] = np.datetime64(tc.datetime)
 
-    # Luong-minute：一分钟内取 PSD 中位数
+    # Luong-minute：一分钟内取 PSD 中位数。
+    # 该结果保留 Luong 风格的窗口定义，主要用于输出 PSD 频带指标。
     psd_minute = minute_median_psd(f, psd_arr, times_center)
-    # ---- strict 1-min PSD：每分钟一个窗（解决分钟空洞）----
+
+    # strict 1-min PSD：以每个整分钟 +30 s 为中心重算 PSD。
+    # 该结果用于热力图和 qb 反演，使 PSD、水位、qb 共用同一条 1-min 时间轴。
     psd_strict_1min = strict_1min_psd_from_trace(
         tr_vel=trv,
         f_ref=psd_minute.columns.to_numpy(dtype=float),  # 统一频率轴
@@ -539,7 +623,6 @@ for ih in range(N_HOURS):
     # 频带指标
     band_df = band_index_from_psd(psd_minute, BAND_FMIN, BAND_FMAX)
 
-    all_minutes_fullspec.append(psd_minute)
     all_minutes_band.append(band_df)
 
     print(f"[INFO] {t1} - {t2}: Luong-minute points = {band_df.shape[0]}")
@@ -551,13 +634,14 @@ if len(all_minutes_band) == 0:
 # =============================================================================
 # 6) 合并全时段 PSD，并生成 strict 1-min 时间轴
 # =============================================================================
-# band 指标
+# band 指标：Luong-minute 结果先合并，再按 1 min resample。
+# 注意 out_band_1min 不是 strict PSD 的频带积分，而是 Luong-minute 指标的分钟网格版本。
 out_band = pd.concat(all_minutes_band).sort_index()
 out_band = out_band.groupby(out_band.index).median()
 out_band_1min = out_band.resample("1min").median()
 
-# full spectrum PSD
-# ===== strict 1-min full spectrum PSD（每分钟必有一个）=====
+# full spectrum PSD：strict 1-min full spectrum PSD（理论上每分钟一个）。
+# 若每小时切片边界或原始数据缺测导致取不到完整 nperseg 窗，对应分钟保留 NaN。
 psd_all_1min = pd.concat(all_strict_1min_fullspec).sort_index()
 psd_all_1min = psd_all_1min.groupby(psd_all_1min.index).median()  # 防重
 
@@ -634,6 +718,12 @@ print("[QC] inversion valid mask:", (np.isfinite(PSD_obs_dB) & np.isfinite(H)).s
 
 # 反演只用 PSD 与 H 都是有限值的分钟
 mask = np.isfinite(PSD_obs_dB) & np.isfinite(H)
+if not np.any(mask):
+    raise RuntimeError(
+        "[ERROR] No valid samples for inversion. "
+        "Check PSD NaNs, river time zone, river coverage, and processing time range."
+    )
+
 PSD_obs_dB_use = PSD_obs_dB[mask]
 H_use = H[mask]
 f_inv = f_all[inv_band]
@@ -674,6 +764,10 @@ P_db = safe_db(P_hm, floor=1e-30)
 
 f_show = psd_all_1min_plot.columns.to_numpy(dtype=float)
 freq_mask_show = (f_show >= HEATMAP_FMIN_SHOW) & (f_show <= HEATMAP_FMAX_SHOW)
+if not np.any(freq_mask_show):
+    raise ValueError(
+        f"[ERROR] Heatmap band {HEATMAP_FMIN_SHOW}-{HEATMAP_FMAX_SHOW} Hz has no frequency bins."
+    )
 
 P_db_show = P_db[freq_mask_show, :]
 f_show_use = f_show[freq_mask_show]
