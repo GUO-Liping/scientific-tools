@@ -80,7 +80,7 @@ class PerspectiveClipperSubstation(QMainWindow):
         self.btn_open = QPushButton("📂 打开图片")
         self.btn_open.clicked.connect(self.open_image)
         
-        self.btn_load_json = QPushButton("📄 导入 Labelme JSON")
+        self.btn_load_json = QPushButton("📄 导入JSON裁剪坐标")
         self.btn_load_json.clicked.connect(self.load_labelme_json)
         
         self.btn_save_json = QPushButton("💾 导出新 JSON 坐标")
