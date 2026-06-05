@@ -1,3 +1,11 @@
+'''
+# 该程序用于读取高速视频
+# 提取关键帧画面
+# 支持帧画面图像裁剪
+# 支持帧画面图像增强
+# 进行RAFT光流分析
+'''
+
 import cv2
 import numpy as np
 import torch
@@ -6,26 +14,25 @@ from torchvision.models.optical_flow import Raft_Large_Weights, raft_large, Raft
 
 
 # ====================== 配置区域 ======================
-USE_VIDEO = True                    # True: 从视频读取帧    False: 直接读取图片
+USE_VIDEO = False                    # True: 从视频读取帧    False: 直接读取图片
 VIDEO_BACKEND = "decord"            # "decord"在 USE_VIDEO=True 时生效
 
 # ================== 文件路径 ==================
 VIDEO_PATH = '105-tower60m4500vol8.3T-0.1share8395g-2254-2880-3rd.avi'
 
-FRAME1_PATH = 'frame_4335_crop.png'
-FRAME2_PATH = 'frame_4336_crop.png'
+FRAME1_PATH = 'frame_002461_crop.jpg'
+FRAME2_PATH = 'frame_002462_crop.jpg'
+FRAME_1ST = 2461
+FRAME_2ND = 2462
 
-
-crop_frame = True     # 画面裁剪
-scale_frame = True    # 画面缩放
+crop_frame = False     # 画面裁剪
+scale_frame = False    # 画面缩放
 pad_frame = True      # 画面补充/RAFT要求
-enhance_frame = False # 画质提升
+enhance_frame = False # 图像增强
 
 # ================== 帧参数 ==================
-FRAME_1ST = 200
-FRAME_2ND = 201
 FRAME_RATE = 120.0
-PIXELS_PER_METER = 890/0.6  # 1461 / 0.6
+PIXELS_PER_METER = 893/0.6  # 1461 / 0.6
 DT = (FRAME_2ND - FRAME_1ST) / FRAME_RATE
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -41,7 +48,10 @@ ENHANCE_PARAMS = {
 }
 
 POSTPROCESS_THRESHOLD = 0.1  # 用于过滤小于速度峰值该倍数的速度场，数值范围0-1.0
-
+RAW_SCALE, RAW_WIDTH, RAW_SPACE = 600, 0.005, 30  # 用于绘制速度场箭头的参数，scale越大，箭头越短， width越大，箭头越粗, space越大，箭头间距越大
+X_COOR, Y_COOR, W_WIDTH, H_HEIGHT = 660, 140, 3120, 1680  # 用于矩形裁剪的参数
+ENHANCE_FIG_SIZE = (8, 10)
+RAFT_FIG_SIZE = (12, 8)
 
 # ====================== 视频读取函数 ======================
 def read_frame_decord(video_path, frame_idx):
@@ -159,8 +169,7 @@ def postprocess_flow(u, v, magnitude, threshold):
 
 # ====================== 可视化函数 ======================
 def visualize_enhancement_comparison(frame_a_orig, frame_a_enh, frame_b_orig, frame_b_enh):
-    fig, axes = plt.subplots(2, 2, figsize=(10, 8))
-    plt.tight_layout(pad=3.0)
+    fig, axes = plt.subplots(2, 2, figsize=ENHANCE_FIG_SIZE)
 
     axes[0, 0].imshow(cv2.cvtColor(frame_a_orig, cv2.COLOR_BGR2RGB))
     axes[0, 0].set_title(f'Frame {FRAME_1ST} - Original')
@@ -179,12 +188,14 @@ def visualize_enhancement_comparison(frame_a_orig, frame_a_enh, frame_b_orig, fr
     axes[1, 1].axis('off')
 
     plt.suptitle('Brightness & Contrast Enhancement Comparison', fontsize=16, fontweight='bold')
+    plt.tight_layout(pad=2.0)
     plt.show()
 
 
 def visualize_results(frame_a_color, frame_b_color, u_phys, v_phys, magnitude_phys, u, v, magnitude):
-    fig = plt.figure(figsize=(18, 8))
-    plt.tight_layout(pad=4.0)
+    fig = plt.figure(figsize=RAFT_FIG_SIZE)
+
+    max_colorbar = magnitude_phys.max()
 
     ax1 = plt.subplot(2, 3, 1)
     ax1.imshow(cv2.cvtColor(frame_a_color, cv2.COLOR_BGR2RGB))
@@ -197,37 +208,39 @@ def visualize_results(frame_a_color, frame_b_color, u_phys, v_phys, magnitude_ph
     ax2.axis('off')
 
     ax3 = plt.subplot(2, 3, 3)
-    im3 = ax3.imshow(magnitude_phys, cmap='RdBu_r', origin='lower')
+    im3 = ax3.imshow(magnitude_phys, cmap='RdBu_r', origin='lower', vmin=0.00, vmax=max_colorbar)
     ax3.set_title('Velocity Magnitude (m/s)')
     ax3.invert_yaxis()
     plt.colorbar(im3, ax=ax3, fraction=0.046, pad=0.04)
     ax3.axis('off')
 
     ax4 = plt.subplot(2, 3, 4)
-    step = 12
+    step = RAW_SPACE
     h, w = magnitude_phys.shape
     y_idx, x_idx = np.mgrid[0:h:step, 0:w:step]
     ax4.imshow(cv2.cvtColor(frame_b_color, cv2.COLOR_BGR2RGB), origin='upper')
     quiv = ax4.quiver(x_idx, y_idx, u[y_idx, x_idx], v[y_idx, x_idx],
-                      magnitude_phys[y_idx, x_idx], cmap='RdBu_r', scale=300, width=0.003)
+                      magnitude_phys[y_idx, x_idx], cmap='RdBu_r', scale=RAW_SCALE, width=RAW_WIDTH)
+    quiv.set_clim(0.00, max_colorbar)
     ax4.set_title('Velocity Vector Field')
     plt.colorbar(quiv, ax=ax4, fraction=0.046, pad=0.04)
 
     ax5 = plt.subplot(2, 3, 5)
-    im5 = ax5.imshow(u_phys, cmap='RdBu_r', origin='lower', vmin=-magnitude_phys.max(), vmax=magnitude_phys.max())
+    im5 = ax5.imshow(u_phys, cmap='RdBu_r', origin='lower', vmin=-max_colorbar, vmax=max_colorbar)
     ax5.set_title('Horizontal Velocity u (m/s)')
     ax5.invert_yaxis()
     plt.colorbar(im5, ax=ax5, fraction=0.046, pad=0.04)
     ax5.axis('off')
 
     ax6 = plt.subplot(2, 3, 6)
-    im6 = ax6.imshow(v_phys, cmap='RdBu_r', origin='lower', vmin=-magnitude_phys.max(), vmax=magnitude_phys.max())
+    im6 = ax6.imshow(v_phys, cmap='RdBu_r', origin='lower', vmin=-max_colorbar, vmax=max_colorbar)
     ax6.set_title('Vertical Velocity v (m/s)')
     ax6.invert_yaxis()
     plt.colorbar(im6, ax=ax6, fraction=0.046, pad=0.04)
     ax6.axis('off')
 
     plt.suptitle('RAFT Optical Flow - Wet-Avalanche Flow Analysis', fontsize=16, fontweight='bold')
+    plt.tight_layout(pad=2.0)
     plt.show()
 
 
@@ -242,14 +255,14 @@ def main():
         print(f"帧画面读取失败")
 
     # 保存读取到的原始帧
-    cv2.imwrite(f"frame_{FRAME_1ST}_origin.jpg", frame_a_origin)
-    cv2.imwrite(f"frame_{FRAME_2ND}_origin.jpg", frame_b_origin)
+    #cv2.imwrite(f"frame_{FRAME_1ST}_origin.jpg", frame_a_origin)
+    #cv2.imwrite(f"frame_{FRAME_2ND}_origin.jpg", frame_b_origin)
     print(f"读取成功，原始尺寸: {frame_a_origin.shape}")
 
     # 大图像裁剪
     if crop_frame == True:
-        frame_a_color = crop_image(frame_a_origin, x=660, y=140, w=3120, h=1680)
-        frame_b_color = crop_image(frame_b_origin, x=660, y=140, w=3120, h=1680)
+        frame_a_color = crop_image(frame_a_origin, x=X_COOR, y=Y_COOR, w=W_WIDTH, h=H_HEIGHT)
+        frame_b_color = crop_image(frame_b_origin, x=X_COOR, y=Y_COOR, w=W_WIDTH, h=H_HEIGHT)
     if crop_frame == False:
         frame_a_color = frame_a_origin
         frame_b_color = frame_b_origin
@@ -278,12 +291,12 @@ def main():
 
         print("图像增强完成")
 
-    # 4. 显示增强对比
-    visualize_enhancement_comparison(frame_a_origin, frame_a_color,
-                                   frame_b_origin, frame_b_color)
+        # 显示增强对比
+        visualize_enhancement_comparison(frame_a_origin, frame_a_color,
+                                       frame_b_origin, frame_b_color)
 
 
-    # 5. RAFT 输入准备
+    # 4. RAFT 输入准备
     frame_a = cv2.cvtColor(frame_a_color, cv2.COLOR_BGR2RGB)
     frame_b = cv2.cvtColor(frame_b_color, cv2.COLOR_BGR2RGB)
 
@@ -293,7 +306,7 @@ def main():
     frame_a_tensor = frame_a_tensor.unsqueeze(0).to(DEVICE)
     frame_b_tensor = frame_b_tensor.unsqueeze(0).to(DEVICE)
 
-    # 6. RAFT 光流计算
+    # 5. RAFT 光流计算
     if RAFT_model == 'large' or RAFT_model == 'Large' or RAFT_model == 'LARGE':
         print("加载 RAFT Large 模型...")
         weights = Raft_Large_Weights.DEFAULT
@@ -312,14 +325,14 @@ def main():
 
     print("RAFT 光流计算完成")
 
-    # 7. 提取 & 后处理
+    # 6. 提取 & 后处理
     u = flow[0, 0].cpu().numpy()
     v = -flow[0, 1].cpu().numpy()
     magnitude = np.sqrt(u**2 + v**2)
 
     u, v = postprocess_flow(u, v, magnitude, threshold=POSTPROCESS_THRESHOLD)
 
-    # 8. 物理单位转换
+    # 7. 物理单位转换
     u_phys = u / DT / PIXELS_PER_METER
     v_phys = v / DT / PIXELS_PER_METER
     magnitude_phys = magnitude / DT / PIXELS_PER_METER
@@ -331,16 +344,19 @@ def main():
     print(f"最小速度: {min_magnitude:.3f} m/s")
     print(f"平均速度: {mean_magnitude:.3f} m/s")
 
-    # 9. 可视化
+    # 8. 可视化
     visualize_results(frame_a_color, frame_b_color, u_phys, v_phys, magnitude_phys, u, v, magnitude)
 
-    # 10. 保存
+    # 9. 保存
+    '''
     plt.savefig(f'RAFT_Analysis_{FRAME_1ST}_{FRAME_2ND}.png', dpi=300, bbox_inches='tight')
     np.savez_compressed(f'RAFT_flow_data_{FRAME_1ST}_{FRAME_2ND}.npz',
                         u_phys=u_phys, v_phys=v_phys, 
                         magnitude_phys=magnitude_phys, frame_b=frame_b)
+    
+    '''
+    print("\n RAFT 分析完成！")
 
-    print("\n RAFT 分析完成！结果已保存。")
 
 
 if __name__ == "__main__":

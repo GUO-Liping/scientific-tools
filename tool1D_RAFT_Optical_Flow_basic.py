@@ -1,169 +1,148 @@
-import os
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-from torchvision.models.optical_flow import Raft_Large_Weights, raft_large, Raft_Small_Weights, raft_small
-# from torchvision.io import read_video
+from torchvision.models.optical_flow import Raft_Large_Weights, raft_large
+import torchvision.transforms.functional as F
+
+# 设置中文字体（防止 matplotlib 乱码）
+plt.rcParams["font.sans-serif"] = ["SimHei"]
+plt.rcParams["axes.unicode_minus"] = False
 
 
-# ====================== 配置 ======================
-video_path = '126-tower60csphrer2cmdeg37.5m4500rho476vo5.28T0.0share7940g-2104-2980-1st.avi' #  'DJI_20260427191850_0320_D.mp4'
-frame_1st = 5000 # 4336
-frame_2nd = 6000 # 4337
-frame_rate = 120.0
+def preprocess_image(img_path):
+    """读取并预处理图像，使其符合 RAFT 模型的输入要求"""
+    img = cv2.imread(img_path)
+    if img is None:
+        raise FileNotFoundError(f"无法读取图片: {img_path}")
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-print(torch.cuda.is_available())
+    # 转换为 PyTorch Tensor，并归一化到 [-1, 1] 范围（RAFT 模型的输入标准）
+    img_tensor = torch.from_numpy(img).permute(2, 0, 1).float()
+    img_tensor = (img_tensor / 255.0) * 2.0 - 1.0
 
-pixels_per_meter = 881 / 0.6
-dt = (frame_2nd - frame_1st) / frame_rate
+    # RAFT 要求图像高宽必须是 8 的倍数，进行向下裁剪或填充
+    h, w = img_tensor.shape[1:]
+    h_new = h - (h % 8)
+    w_new = w - (w % 8)
+    img_tensor = img_tensor[:, :h_new, :w_new]
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"使用设备: {device}")
-print(f"dt = {dt:.5f} s | pixels_per_meter = {pixels_per_meter:.2f} px/m")
-
-# ====================== 1. 读取两帧 ======================
-cap = cv2.VideoCapture(video_path, cv2.CAP_FFMPEG)
-cap.set(cv2.CAP_PROP_POS_FRAMES, frame_1st)
-ret, frame_a_color = cap.read()
-cap.set(cv2.CAP_PROP_POS_FRAMES, frame_2nd)
-ret, frame_b_color = cap.read()
-cap.release()
-
-if frame_a_color is None or frame_b_color is None:
-    print("读取帧失败！")
-    exit()
-
-print(f"读取成功，尺寸: {frame_a_color.shape}")
-
-# ====================== 2. 亮度与对比度提升 ======================
-alpha = 1.0    # 对比度
-beta = 0       # 亮度
-
-frame_a_enhanced = cv2.convertScaleAbs(frame_a_color, alpha=alpha, beta=beta)
-frame_b_enhanced = cv2.convertScaleAbs(frame_b_color, alpha=alpha, beta=beta)
-
-print(f"图像亮度提升完成 (alpha={alpha}, beta={beta})")
-
-# ====================== 3. 显示提升前后的对比图 ======================
-fig_compare, axes = plt.subplots(2, 2, figsize=(12, 10))
-plt.tight_layout(pad=3.0)
-
-axes[0, 0].imshow(cv2.cvtColor(frame_a_color, cv2.COLOR_BGR2RGB), origin='upper')
-axes[0, 0].set_title(f'Frame {frame_1st} - Original')
-axes[0, 0].axis('off')
-
-axes[0, 1].imshow(cv2.cvtColor(frame_a_enhanced, cv2.COLOR_BGR2RGB), origin='upper')
-axes[0, 1].set_title(f'Frame {frame_1st} - Enhanced')
-axes[0, 1].axis('off')
-
-axes[1, 0].imshow(cv2.cvtColor(frame_b_color, cv2.COLOR_BGR2RGB), origin='upper')
-axes[1, 0].set_title(f'Frame {frame_2nd} - Original')
-axes[1, 0].axis('off')
-
-axes[1, 1].imshow(cv2.cvtColor(frame_b_enhanced, cv2.COLOR_BGR2RGB), origin='upper')
-axes[1, 1].set_title(f'Frame {frame_2nd} - Enhanced')
-axes[1, 1].axis('off')
-
-plt.suptitle('Brightness & Contrast Enhancement Comparison', fontsize=16, fontweight='bold')
-plt.show()
-
-# 转为 RGB 并归一化到 [0,1]（RAFT 输入要求）
-frame_a = cv2.cvtColor(frame_a_color, cv2.COLOR_BGR2RGB)
-frame_b = cv2.cvtColor(frame_b_color, cv2.COLOR_BGR2RGB)
-
-frame_a_tensor = torch.from_numpy(frame_a).permute(2, 0, 1).float() / 255.0
-frame_b_tensor = torch.from_numpy(frame_b).permute(2, 0, 1).float() / 255.0
-
-# 添加 batch 维度
-frame_a_tensor = frame_a_tensor.unsqueeze(0).to(device)
-frame_b_tensor = frame_b_tensor.unsqueeze(0).to(device)
-
-print("图像加载完成")
-
-# ====================== 2. 加载 RAFT 模型 ======================
-print("加载 RAFT Large 模型...")
-weights = Raft_Large_Weights.DEFAULT
-model = raft_large(weights=weights).to(device)
-model.eval()
+    return img_tensor.unsqueeze(0), img[:, :h_new, :w_new]
 
 
-with torch.no_grad():
-    # RAFT 返回多个迭代结果，取最后一个
-    flow_list = model(frame_a_tensor, frame_b_tensor)
-    flow = flow_list[-1]          # shape: (1, 2, H, W)
+def flow_to_hsv(flow):
+    """将二维光流场 (u, v) 映射到科学通用的 HSV 颜色空间"""
+    u, v = flow[0], flow[1]
+    magnitude, angle = cv2.cartToPolar(u, v)
 
-print("RAFT 光流计算完成")
+    # 初始化 HSV 图像
+    hsv = np.zeros((u.shape[0], u.shape[1], 3), dtype=np.uint8)
 
-# ====================== 3. 提取速度场并转为物理单位 ======================
-u = flow[0, 0].cpu().numpy()      # 水平方向 (pixels)
-v = flow[0, 1].cpu().numpy()      # 垂直方向 (pixels)
+    # 色调 (H) 代表运动方向：角度 [0, 360] 映射到 [0, 180]
+    hsv[..., 0] = angle * 180 / np.pi / 2
+    # 饱和度 (S) 保持最大
+    hsv[..., 1] = 255
+    # 亮度 (V) 代表运动速度：速度幅值归一化映射到 [0, 255]
+    hsv[..., 2] = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)
 
-magnitude = np.sqrt(u**2 + v**2)
+    # 转回 RGB 格式供 matplotlib 绘制
+    rgb_flow = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    return rgb_flow, magnitude
 
-# 转为物理单位 m/s
-u_phys = u / dt / pixels_per_meter
-v_phys = v / dt / pixels_per_meter
-magnitude_phys = magnitude / dt / pixels_per_meter
 
-print(f"最大速度: {magnitude_phys.max():.3f} m/s")
-print(f"平均速度: {magnitude_phys.mean():.3f} m/s")
+def plot_scientific_results(img1, rgb_flow, magnitude, flow, step=16):
+    """科学规范地绘制光流分析结果"""
+    u, v = flow[0], flow[1]
+    h, w = u.shape
 
-# ====================== 4. 专业可视化 ======================
-fig = plt.figure(figsize=(16, 6))
-plt.tight_layout(pad=4.0)
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-ax1 = plt.subplot(2, 3, 1)
-ax1.imshow(cv2.cvtColor(frame_a_color, cv2.COLOR_BGR2RGB))
-ax1.set_title(f'Frame {frame_1st}')
-ax1.axis('off')
+    # 1. 原始第一帧画面
+    axes[0, 0].imshow(img1)
+    axes[0, 0].set_title("原始参考帧 (Frame 1)", fontsize=14)
+    axes[0, 0].axis("off")
 
-ax2 = plt.subplot(2, 3, 2)
-ax2.imshow(cv2.cvtColor(frame_b_color, cv2.COLOR_BGR2RGB))
-ax2.set_title(f'Frame {frame_2nd}')
-ax2.axis('off')
+    # 2. 密集光流 HSV 色学可视化（常用于表现运动趋势与边界）
+    axes[0, 1].imshow(rgb_flow)
+    axes[0, 1].set_title("RAFT 密集光流场 (HSV 编码)", fontsize=14)
+    axes[0, 1].axis("off")
 
-ax3 = plt.subplot(2, 3, 3)
-ax3.imshow(magnitude_phys, cmap='RdBu_r', origin='lower')
-ax3.set_title('Velocity Magnitude (m/s)')
-plt.colorbar(ax3.images[0], ax=ax3, fraction=0.046, pad=0.04)
-ax3.axis('off')
+    # 3. 速度幅值热力图（定量分析速度大小分布）
+    im = axes[1, 0].imshow(magnitude, cmap="jet")
+    axes[1, 0].set_title("运动速率绝对值分布 (Magnitude)", fontsize=14)
+    axes[1, 0].axis("off")
+    fig.colorbar(
+        im, ax=axes[1, 0], orientation="horizontal", pad=0.05, label="像素位移 / 帧"
+    )
 
-# 彩色矢量场
-ax4 = plt.subplot(2, 3, 4)
-step = 12
-h, w = magnitude.shape
-y_idx, x_idx = np.mgrid[0:h:step, 0:w:step]
+    # 4. 稀疏矢量箭头图（Quiver Plot，流体力学/动作力学经典表达）
+    # 创建稀疏采样网格，避免箭头过密无法分辨
+    x, y = np.meshgrid(np.arange(0, w), np.arange(0, h))
+    x_sparse = x[::step, ::step]
+    y_sparse = y[::step, ::step]
+    u_sparse = u[::step, ::step]
+    v_sparse = v[::step, ::step]
 
-ax4.imshow(cv2.cvtColor(frame_b_color, cv2.COLOR_BGR2RGB), origin='upper')
-quiv = ax4.quiver(x_idx, y_idx, 
-                  u[y_idx, x_idx], v[y_idx, x_idx],
-                  magnitude[y_idx, x_idx], cmap='RdBu_r',
-                  scale=800, width=0.003)
-ax4.set_title('Velocity Vector Field')
-ax4.invert_yaxis()
-plt.colorbar(quiv, ax=ax4, fraction=0.046, pad=0.04)
+    # 在第一帧背景上叠加矢量箭头
+    axes[1, 1].imshow(img1, alpha=0.7)
+    # 倒置 Y 轴使 matplotlib 的坐标系与图像坐标系对齐
+    axes[1, 1].quiver(
+        x_sparse,
+        y_sparse,
+        u_sparse,
+        -v_sparse,
+        color="lime",
+        angles="xy",
+        scale_units="xy",
+        scale=0.5,
+        width=0.0025,
+    )
+    axes[1, 1].set_title(f"位移矢量箭头图 (采样步长: {step}px)", fontsize=14)
+    axes[1, 1].set_xlim(0, w)
+    axes[1, 1].set_ylim(h, 0)  # 反转y轴匹配图像
+    axes[1, 1].axis("off")
 
-ax5 = plt.subplot(2, 3, 5)
-im5 = ax5.imshow(u_phys, cmap='RdBu_r', origin='lower', vmin=-2, vmax=2)
-ax5.set_title('Horizontal Velocity u (m/s)')
-plt.colorbar(im5, ax=ax5, fraction=0.046, pad=0.04)
-ax5.axis('off')
+    plt.tight_layout()
+    plt.savefig("raft_optical_flow_analysis.png", dpi=300)
+    plt.show()
 
-ax6 = plt.subplot(2, 3, 6)
-im6 = ax6.imshow(v_phys, cmap='RdBu_r', origin='lower', vmin=-2, vmax=2)
-ax6.set_title('Vertical Velocity v (m/s)')
-plt.colorbar(im6, ax=ax6, fraction=0.046, pad=0.04)
-ax6.axis('off')
 
-plt.suptitle('RAFT Optical Flow - Wet-Avalanche Flow Analysis', fontsize=16, fontweight='bold')
-plt.show()
+def main(img1_path, img2_path):
+    # 1. 检查运行设备
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"正在使用设备: {device}")
 
-# ====================== 保存结果 ======================
-plt.savefig(f'RAFT_Analysis_{frame_1st}_{frame_2nd}.png', dpi=300, bbox_inches='tight')
+    # 2. 加载 PyTorch 官方内置的 RAFT Large 模型
+    weights = Raft_Large_Weights.DEFAULT
+    model = raft_large(weights=weights, progress=True).to(device)
+    model.eval()
 
-np.savez_compressed(f'RAFT_flow_data_{frame_1st}_{frame_2nd}.npz',
-                    u_phys=u_phys, v_phys=v_phys, magnitude_phys=magnitude_phys,
-                    frame_b=frame_b)
+    # 3. 数据加载与预处理
+    print("正在读取并转换图像...")
+    img1_tensor, img1_rgb = preprocess_image(img1_path)
+    img2_tensor, _ = preprocess_image(img2_path)
 
-print("\nRAFT 分析完成！结果已保存。")
+    img1_tensor = img1_tensor.to(device)
+    img2_tensor = torch.to(device) if hasattr(torch, 'to') else img2_tensor.to(device)
+
+    # 4. 模型推理计算光流
+    print("正在利用 RAFT 计算密集光流...")
+    with torch.no_grad():
+        # RAFT 推理会返回迭代过程中的所有流，我们取最后一次迭代（最精准）的结果
+        list_of_flows = model(img1_tensor, img2_tensor)
+        predicted_flow = list_of_flows[-1].squeeze(0).cpu().numpy()  # 形状: (2, H, W)
+
+    # 5. 分析结果转换为科学表现形式
+    print("计算完成，正在生成科学可视化图表...")
+    rgb_flow, magnitude = flow_to_hsv(predicted_flow)
+
+    # 6. 绘图展示
+    plot_scientific_results(img1_rgb, rgb_flow, magnitude, predicted_flow, step=16)
+
+
+if __name__ == "__main__":
+    # 使用时请将下面路径替换为你本地的连续帧图像路径
+    image_frame1 = "frame_002459_crop.jpg"
+    image_frame2 = "frame_002460_crop.jpg"
+
+    main(image_frame1, image_frame2)

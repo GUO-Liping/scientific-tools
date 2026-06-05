@@ -72,14 +72,14 @@ if __name__ == "__main__":
 
     # 支持的图片格式
     image_files = []
-    for ext in ("*.jpg", "*.jpeg"):
+    for ext in ("*.png", "*.jpeg"):
         image_files.extend(Path(".").glob(ext))
     image_files = sorted(image_files)
 
     output_dir = Path("Img_cropped")
     output_dir.mkdir(exist_ok=True)
 
-    label_pts = load_labelme_points("img_crop.json")
+    label_pts = load_labelme_points("video111_frame461.json")
     print(f'label_pts= {np.round(label_pts, 2)}')
     ordered_pts = order_points(label_pts)
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         img = cv2.imread(str(img_path))
         print(f'[Image {i}] height={img.shape[0]}, width={img.shape[1]}, channel={img.shape[2]}')
         cropped_img = perspective_crop(img, ordered_pts)    
-        out_name = output_dir / (img_path.stem + "_crop.png")    
+        out_name = output_dir / (img_path.stem + "_crop.jpg")    
         cv2.imwrite(str(out_name), cropped_img)  
         print(f'[Crop  {i}] height={cropped_img.shape[0]}, width={cropped_img.shape[1]}, channel={cropped_img.shape[2]}')  
 

@@ -7,8 +7,8 @@ from openpiv import tools, pyprocess, validation, filters, scaling
 print("Current dir:", os.getcwd())
 
 # 1. 读取两帧图像
-frame_a = tools.imread('frames_192.168.8.47_top/frame_0130.jpg')
-frame_b = tools.imread('frames_192.168.8.47_top/frame_0150.jpg')
+frame_a = tools.imread('frame_002468_crop.jpg')
+frame_b = tools.imread('frame_002469_crop.jpg')
 
 # 2. 计算PIV速度场
 winsize = 32
