@@ -13,8 +13,8 @@ from PyQt6.QtGui import QImage, QWheelEvent, QMouseEvent, QPaintEvent, QPainter
 # 1. 高性能视口交互组件
 # ==========================================
 class VideoWidget(QWidget):
-    clicked_pos = pyqtSignal(int, int)
-    moved_pos = pyqtSignal(int, int)
+    clicked_pos = pyqtSignal(float, float)
+    moved_pos = pyqtSignal(float, float)
 
     def __init__(self):
         super().__init__()
@@ -57,7 +57,8 @@ class VideoWidget(QWidget):
         canvas_x = (pos.x() - x_offset) / self.zoom_level
         canvas_y = (pos.y() - y_offset) / self.zoom_level
         if 0 <= canvas_x < self.canvas_w and 0 <= canvas_y < self.canvas_h:
-            return int(canvas_x), int(canvas_y)
+            # 【修改 2】：返回 float，消除网格跳动感
+            return float(canvas_x), float(canvas_y) 
         return None
 
     def wheelEvent(self, event: QWheelEvent):
@@ -71,7 +72,7 @@ class VideoWidget(QWidget):
                 lw, lh = self.width(), self.height()
                 self.pan_offset_x = event.position().x() - (lw / 2 + (cx - self.canvas_w / 2) * self.zoom_level)
                 self.pan_offset_y = event.position().y() - (lh / 2 + (cy - self.canvas_h / 2) * self.zoom_level)
-            self.moved_pos.emit(-1, -1) 
+            self.moved_pos.emit(-1.0, -1.0) 
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.RightButton:
@@ -91,7 +92,7 @@ class VideoWidget(QWidget):
             self.pan_offset_x += delta.x()
             self.pan_offset_y += delta.y()
             self.last_mouse_pos = event.position()
-            self.moved_pos.emit(-1, -1)
+            self.moved_pos.emit(-1.0, -1.0)
         else:
             coords = self._get_canvas_coords(event.position().toPoint())
             if coords: 
@@ -330,7 +331,7 @@ class MainWindow(QMainWindow):
         self.seek_frame(position, absolute=True)
 
     def on_video_moved(self, x, y):
-        if not (x == -1 and y == -1):
+        if not (x == -1.0 and y == -1.0):
             self.mouse_curr_pos = (x, y)
         self.render_frame()
 
@@ -363,11 +364,13 @@ class MainWindow(QMainWindow):
         if (src_y2 > src_y1) and (src_x2 > src_x1):
             screen_output[dst_y1:dst_y2, dst_x1:dst_x2] = view_img[src_y1:src_y2, src_x1:src_x2]
 
+        # 坐标映射函数（浮点数转整数屏幕像素）
         def to_screen_pixel(canvas_x, canvas_y):
             scr_x = int((lw - view_w) / 2 + pan_x + canvas_x * zoom)
             scr_y = int((lh - view_h) / 2 + pan_y + canvas_y * zoom)
             return scr_x, scr_y
 
+        # --------- 下方绘制十字光标、标定点、轨迹点逻辑不变 ---------
         if self.state == "CALIBRATING_2" and self.calib_pt1 and self.mouse_curr_pos:
             p1 = to_screen_pixel(*self.calib_pt1)
             p2 = to_screen_pixel(*self.mouse_curr_pos)
@@ -391,7 +394,6 @@ class MainWindow(QMainWindow):
             rx, ry = data['rel_x'], data['rel_y']
             cv2.circle(screen_output, (px, py), 4, (0, 255, 0), -1)
             
-            # 屏幕标签上如果设置了零点时刻，也显示相对时间便于核对
             if self.first_time_sec is not None:
                 rel_time = data['time'] - self.first_time_sec
                 text = f"X:{rx:.2f} Y:{ry:.2f} | t:{rel_time:.3f}s"
