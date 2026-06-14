@@ -1,49 +1,22 @@
-"""
-高速视频运动分析工具 V2.2.4beta - 整合优化版
-基于 V2.1 稳定架构 + V2.2.4 优秀功能整合
-"""
 import sys
-import math
 import os
-from typing import Optional, List, Dict
-from collections import OrderedDict
-
 import cv2
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
-
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget,
-    QLabel, QFileDialog, QInputDialog, QMessageBox, QSlider, QSpinBox,
-    QFrame, QToolBar, QCheckBox, QStyle, QComboBox, QSizePolicy
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QPointF, QSize, QThread, QRectF
-from PyQt6.QtGui import (
-    QImage, QWheelEvent, QMouseEvent, QPaintEvent, QPainter, QColor, QPen, QFont,
-    QAction, QKeySequence, QIcon, QPixmap, QBrush
-)
+import math
+from collections import OrderedDict
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
+                             QPushButton, QWidget, QLabel, QFileDialog, QInputDialog, QMessageBox, QSlider, QSpinBox,
+                             QFrame, QSizePolicy, QToolBar, QCheckBox, QStyle)
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRectF, QPointF, QSize
+from PyQt6.QtGui import (QImage, QWheelEvent, QMouseEvent, QPaintEvent, QPainter, QColor, QPen, QFont,
+                         QAction, QKeySequence, QIcon, QPixmap)
 
 cv2.setUseOptimized(True)
 pg.setConfigOptions(background="#101418", foreground="#d7dde8", antialias=True)
 
 
-# ==========================================
-# 画质预设配置
-# ==========================================
-QUALITY_PRESETS = {
-    "Ultra": 1.00,
-    "High": 0.75,
-    "Medium": 0.50,
-    "Low": 0.25,
-    "Very Low": 0.125
-}
-QUALITY_ORDER = ["Ultra", "High", "Medium", "Low", "Very Low"]
-
-
-# ==========================================
-# 完整暗色系样式表
-# ==========================================
 APP_STYLE = """
 QMainWindow, QWidget {
     background: #0f141b;
@@ -123,10 +96,6 @@ QSlider::handle:horizontal {
     border-radius: 8px;
     background: #5aa7ff;
 }
-QSlider::handle:horizontal:disabled {
-    background: #3c4a5c;
-    border-color: #3c4a5c;
-}
 QSpinBox {
     background: #111821;
     border: 1px solid #344255;
@@ -168,70 +137,32 @@ QCheckBox {
 QCheckBox::indicator {
     width: 16px;
     height: 16px;
-    border: 1px solid #3c4a5c;
-    border-radius: 3px;
-    background: #1a222c;
-}
-QCheckBox::indicator:checked {
-    background: #5ac8fa;
-}
-QCheckBox::indicator:checked:hover {
-    background: #6bb8ff;
 }
 QLabel#statusLabel {
     color: #ffd166;
     font-weight: 600;
 }
-QComboBox {
-    background: #111821;
-    border: 1px solid #344255;
-    border-radius: 6px;
-    padding: 5px 30px 5px 8px;
-    min-height: 28px;
-}
-QComboBox::drop-down {
-    border: none;
-    width: 28px;
-}
-QComboBox::down-arrow {
-    width: 0;
-    height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 8px solid #edf2f8;
-}
-QComboBox QAbstractItemView {
-    background: #151c25;
-    border: 1px solid #344255;
-    selection-background-color: #263241;
-    color: #d7dde8;
-}
-QComboBox:disabled {
-    background: #0f141b;
-    color: #687484;
-}
 """
-
 
 # ==========================================
 # 1. 高性能视口交互组件
 # ==========================================
 class VideoWidget(QWidget):
-    """高性能视频显示组件，支持缩放、平移、点击交互"""
     clicked_pos = pyqtSignal(float, float)
     moved_pos = pyqtSignal(float, float)
 
     def __init__(self):
         super().__init__()
         self.setStyleSheet("background-color: #05070a; border: 1px solid #263241; border-radius: 8px;")
-        self.setCursor(Qt.CursorShape.BlankCursor)
-        self.setMouseTracking(True)
+        self.setCursor(Qt.CursorShape.BlankCursor) 
+        self.setMouseTracking(True) 
         self.setMinimumSize(720, 420)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.zoom_level = 1.0
         self.pan_offset_x = 0.0
         self.pan_offset_y = 0.0
+        
         self.is_panning = False
         self.last_mouse_pos = None
         self.canvas_w = 0
@@ -240,18 +171,15 @@ class VideoWidget(QWidget):
         self.overlay_state = {}
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
 
-    def set_frame(self, qimg: Optional[QImage]):
-        """设置当前显示帧"""
+    def set_frame(self, qimg):
         self.frame_qimage = qimg
-        self.update()
+        self.update() 
 
     def set_overlay_state(self, **state):
-        """设置覆盖层状态"""
         self.overlay_state = state
         self.update()
 
     def paintEvent(self, event: QPaintEvent):
-        """绘制事件"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, self.zoom_level < 3.0)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -264,14 +192,11 @@ class VideoWidget(QWidget):
         painter.end()
 
     def reset_view(self):
-        """重置视图到初始状态"""
         self.zoom_level = 1.0
         self.pan_offset_x = 0.0
         self.pan_offset_y = 0.0
-        self.update()
 
     def _view_rect(self):
-        """计算当前视图矩形"""
         view_w = self.canvas_w * self.zoom_level
         view_h = self.canvas_h * self.zoom_level
         x_offset = (self.width() - view_w) / 2 + self.pan_offset_x
@@ -279,26 +204,22 @@ class VideoWidget(QWidget):
         return QRectF(x_offset, y_offset, view_w, view_h)
 
     def _get_canvas_coords(self, pos):
-        """将屏幕坐标转换为画布坐标"""
-        if self.canvas_w <= 0 or self.canvas_h <= 0:
-            return None
+        if self.canvas_w <= 0 or self.canvas_h <= 0: return None
         view_rect = self._view_rect()
         x_offset = view_rect.x()
         y_offset = view_rect.y()
         canvas_x = (pos.x() - x_offset) / self.zoom_level
         canvas_y = (pos.y() - y_offset) / self.zoom_level
         if 0 <= canvas_x < self.canvas_w and 0 <= canvas_y < self.canvas_h:
-            return float(canvas_x), float(canvas_y)
+            return float(canvas_x), float(canvas_y) 
         return None
 
     def _to_screen_point(self, canvas_pt):
-        """将画布坐标转换为屏幕坐标"""
         x, y = canvas_pt
         rect = self._view_rect()
         return QPointF(rect.x() + x * self.zoom_level, rect.y() + y * self.zoom_level)
 
     def _paint_overlays(self, painter, view_rect):
-        """绘制覆盖层元素"""
         state = self.overlay_state
         if not state:
             return
@@ -310,7 +231,7 @@ class VideoWidget(QWidget):
         video_info = state.get("video_info")
         if video_info:
             info_text = (
-                f"📁 {video_info['name']}\n"
+                f"✌️ {video_info['name']}\n"
                 f"📂 {video_info['path']}\n"
                 f"🖼️ 分辨率: {video_info['resolution']} | 🎬 帧率: {video_info['fps']} FPS\n"
                 f"📊 总帧数: {video_info['frames']} | ⏱️ 时长: {video_info['duration']}"
@@ -328,23 +249,20 @@ class VideoWidget(QWidget):
             painter.drawText(info_bg_rect.adjusted(12, 8, -12, -8), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, info_text)
 
         def draw_point(pt, color, radius=4):
-            """绘制标记点"""
             screen = self._to_screen_point(pt)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(color))
             painter.drawEllipse(screen, radius, radius)
             return screen
 
-        # 标定起点
         if state.get("calib_pt1"):
+            p1 = self._to_screen_point(state["calib_pt1"])
             draw_point(state["calib_pt1"], "#ff4d4f", 4)
             if state.get("mode") == "CALIBRATING_2" and state.get("mouse_curr_pos"):
-                p1 = self._to_screen_point(state["calib_pt1"])
                 p2 = self._to_screen_point(state["mouse_curr_pos"])
                 painter.setPen(QPen(QColor("#ffd43b"), 1.3))
                 painter.drawLine(p1, p2)
 
-        # 标定线
         calib_line = state.get("calib_line")
         if calib_line:
             p1 = self._to_screen_point(calib_line["p1"])
@@ -357,7 +275,6 @@ class VideoWidget(QWidget):
             mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
             painter.drawText(mid + QPointF(8, -8), calib_line["text"])
 
-        # 原点
         origin_pt = state.get("origin_pt")
         if origin_pt:
             origin = self._to_screen_point(origin_pt)
@@ -368,14 +285,12 @@ class VideoWidget(QWidget):
             painter.setPen(QPen(QColor("#ff4d4f")))
             painter.drawText(origin + QPointF(8, -8), "Origin (0,0)")
 
-        # 当前标记
         mark = state.get("current_mark")
         if mark:
             p = draw_point(mark["pixel_pt"], "#2fef77", 4)
             painter.setPen(QPen(QColor("#2fef77")))
             painter.drawText(p + QPointF(10, -10), mark["text"])
 
-        # 鼠标十字线
         mouse = state.get("mouse_curr_pos")
         if mouse:
             m = self._to_screen_point(mouse)
@@ -385,7 +300,6 @@ class VideoWidget(QWidget):
                 painter.drawLine(QPointF(0, m.y()), QPointF(widget_rect.width(), m.y()))
 
     def wheelEvent(self, event: QWheelEvent):
-        """滚轮缩放"""
         old_coords = self._get_canvas_coords(event.position().toPoint())
         zoom_factor = 1.15 if event.angleDelta().y() > 0 else 1.0 / 1.15
         new_zoom = self.zoom_level * zoom_factor
@@ -397,25 +311,21 @@ class VideoWidget(QWidget):
                 self.pan_offset_x = event.position().x() - (lw / 2 + (cx - self.canvas_w / 2) * self.zoom_level)
                 self.pan_offset_y = event.position().y() - (lh / 2 + (cy - self.canvas_h / 2) * self.zoom_level)
             self.update()
-            self.moved_pos.emit(-1.0, -1.0)
+            self.moved_pos.emit(-1.0, -1.0) 
 
     def mousePressEvent(self, event: QMouseEvent):
-        """鼠标按下事件"""
         if event.button() == Qt.MouseButton.RightButton:
             self.is_panning = True
             self.last_mouse_pos = event.position()
         elif event.button() == Qt.MouseButton.LeftButton:
             coords = self._get_canvas_coords(event.position().toPoint())
-            if coords:
-                self.clicked_pos.emit(*coords)
+            if coords: self.clicked_pos.emit(*coords)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
-        """鼠标释放事件"""
         if event.button() == Qt.MouseButton.RightButton:
             self.is_panning = False
 
     def mouseMoveEvent(self, event: QMouseEvent):
-        """鼠标移动事件"""
         if self.is_panning and self.last_mouse_pos:
             delta = event.position() - self.last_mouse_pos
             self.pan_offset_x += delta.x()
@@ -425,148 +335,59 @@ class VideoWidget(QWidget):
             self.moved_pos.emit(-1.0, -1.0)
         else:
             coords = self._get_canvas_coords(event.position().toPoint())
-            if coords:
+            if coords: 
                 self.moved_pos.emit(*coords)
 
 
 # ==========================================
-# 2. 图表管理器
-# ==========================================
-class PlotManager:
-    """管理运动轨迹图表的数据和显示"""
-    def __init__(self, plot_x: pg.PlotWidget, plot_y: pg.PlotWidget, fps: float = 30.0):
-        self.fps = fps
-        self.plot_x = plot_x
-        self.plot_y = plot_y
-        self.curve_x = plot_x.plot(pen=pg.mkPen('#5ac8fa', width=2), symbol='o', symbolSize=5, symbolBrush='#5ac8fa')
-        self.curve_y = plot_y.plot(pen=pg.mkPen('#ff5c8a', width=2), symbol='o', symbolSize=5, symbolBrush='#ff5c8a')
-        self.curve_x.setClipToView(True)
-        self.curve_y.setClipToView(True)
-
-        self._frames: List[int] = []
-        self._times: List[float] = []
-        self._xs: List[float] = []
-        self._ys: List[float] = []
-        self._first_time: Optional[float] = None
-        self._unit = "单位"
-
-    def set_unit(self, unit: str):
-        """设置物理单位"""
-        self._unit = unit
-        self.plot_x.getAxis('left').setLabel(f"X轴位移 ({unit})")
-        self.plot_y.getAxis('left').setLabel(f"Y轴位移 ({unit})")
-
-    def set_fps(self, fps: float):
-        """设置帧率"""
-        self.fps = fps
-
-    def set_first_time(self, t: Optional[float]):
-        """设置零点时刻基准"""
-        self._first_time = t
-        label = "相对物理时间 (s)" if t is not None else "帧数"
-        self.plot_x.getAxis('bottom').setLabel(label)
-        self.plot_y.getAxis('bottom').setLabel(label)
-
-    def add_point(self, frame: int, rel_x: float, rel_y: float, abs_time: float):
-        """添加数据点"""
-        self._frames.append(frame)
-        self._times.append(abs_time)
-        self._xs.append(rel_x)
-        self._ys.append(rel_y)
-        self._refresh_curves()
-
-    def clear(self):
-        """清空所有数据"""
-        self._frames.clear()
-        self._times.clear()
-        self._xs.clear()
-        self._ys.clear()
-        self._first_time = None
-        self._refresh_curves()
-
-    def _refresh_curves(self):
-        """刷新曲线显示"""
-        if not self._times:
-            self.curve_x.setData([], [])
-            self.curve_y.setData([], [])
-            return
-
-        if self._first_time is not None:
-            x_data = [t - self._first_time for t in self._times]
-        else:
-            x_data = self._frames
-
-        self.curve_x.setData(np.asarray(x_data, dtype=np.float32), np.asarray(self._xs, dtype=np.float32))
-        self.curve_y.setData(np.asarray(x_data, dtype=np.float32), np.asarray(self._ys, dtype=np.float32))
-
-    def auto_range(self):
-        """自动调整图表范围"""
-        self.plot_x.autoRange()
-        self.plot_y.autoRange()
-
-    def get_data_for_export(self):
-        """获取导出数据"""
-        return list(zip(self._frames, self._times, self._xs, self._ys))
-
-
-# ==========================================
-# 3. 主窗口控制层
+# 2. 主窗口控制层
 # ==========================================
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("高速视频运动分析工具 V2.2.4beta")
-        self.resize(1680, 920)
+        self.setWindowTitle("高速视频运动分析工具 V1.0")
+        self.resize(1600, 900)
 
-        # 视频相关
         self.cap = None
         self.video_path = ""  # 视频文件路径
         self.total_frames = 0
         self.fps = 30.0
         self.video_w = 0
         self.video_h = 0
-        self.current_frame_idx = -1
+        self.current_frame_idx = -1 
         self.decoder_next_frame_idx = -1
-        self.base_frame = None
+        self.base_frame = None       
         self.base_qimage = None
         self.adjusted_qimage = None
         self.frame_cache = OrderedDict()
         self.max_cached_frames = 24
-
-        # 状态管理
         self.is_slider_dragging = False
         self.is_seeking = False
         self.preview_max_w = 1152
         self.preview_max_h = 648
         self.preview_scale_percent = 100
-        self.current_quality = "Ultra"
 
-        # 标定和坐标系
-        self.state = "IDLE"
+        self.state = "IDLE" 
         self.calib_pt1 = None
         self.calib_line = None
         self.show_calib_line = True
-        self.scale_factor = 1.0
-        self.physics_unit = "单位"
-        self.origin_pt = None
-        self.first_time_sec = None
-        self.mouse_curr_pos = None
-
-        # 图像调整
+        self.scale_factor = 1.0 
+        self.physics_unit = "单位" 
+        self.origin_pt = None   
+        self.mouse_curr_pos = None 
         self.brightness = 0
         self.contrast = 1.0
 
-        # 数据存储
-        self.marks: Dict[int, dict] = {}
-
-        # 播放控制
+        self.marks = {}
+        # 零点时刻同步变量
+        self.first_time_sec = None  # 记录捕捉模式第一个点的绝对时间(s)
+        
         self.play_timer = QTimer()
         self.play_timer.timeout.connect(self.play_next_frame)
 
         self.init_ui()
 
     def _std_icon(self, standard_pixmap):
-        """创建标准图标（暗色主题）"""
         source_icon = self.style().standardIcon(standard_pixmap)
         icon = QIcon()
         for mode, color in [
@@ -586,7 +407,6 @@ class MainWindow(QMainWindow):
         return icon
 
     def create_actions(self):
-        """创建菜单动作"""
         style = QStyle.StandardPixmap
 
         self.act_load = QAction(self._std_icon(style.SP_DialogOpenButton), "加载视频", self)
@@ -617,14 +437,17 @@ class MainWindow(QMainWindow):
         self.act_exit.triggered.connect(self.close)
 
         self.video_actions = [
-            self.act_calib, self.act_origin, self.act_mark,
-            self.act_export, self.act_export_frame, self.act_reset_view,
+            self.act_calib,
+            self.act_origin,
+            self.act_mark,
+            self.act_export,
+            self.act_export_frame,
+            self.act_reset_view,
         ]
         for action in self.video_actions:
             action.setEnabled(False)
 
     def create_menus(self):
-        """创建菜单栏"""
         file_menu = self.menuBar().addMenu("文件")
         file_menu.addAction(self.act_load)
         file_menu.addAction(self.act_export)
@@ -641,7 +464,6 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.act_reset_view)
 
     def create_toolbars(self):
-        """创建工具栏"""
         toolbar = QToolBar("主工具栏", self)
         toolbar.setMovable(False)
         toolbar.setIconSize(QSize(20, 20))
@@ -658,7 +480,6 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
     def init_ui(self):
-        """初始化用户界面"""
         self.create_actions()
         self.create_menus()
         self.create_toolbars()
@@ -669,26 +490,39 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(14, 14, 14, 14)
         root_layout.setSpacing(10)
 
-        # 主内容区域
         content_layout = QHBoxLayout()
         content_layout.setSpacing(12)
-
         left_layout = QVBoxLayout()
         left_layout.setSpacing(0)
-        self.video_widget = VideoWidget()
+        self.video_widget = VideoWidget() 
         self.video_widget.clicked_pos.connect(self.on_video_clicked)
         self.video_widget.moved_pos.connect(self.on_video_moved)
-        left_layout.addWidget(self.video_widget, stretch=1)
+        left_layout.addWidget(self.video_widget, stretch=1) 
 
-        # 图表区域
         right_layout = QVBoxLayout()
         right_layout.setSpacing(10)
-        self.plot_x = pg.PlotWidget(title="水平 (X轴) 位移图")
+        self.plot_x = pg.PlotWidget(title="输电塔水平 (X轴) 振动位移")
         self.plot_x.showGrid(x=True, y=True, alpha=0.3)
-        self.plot_y = pg.PlotWidget(title="垂直 (Y轴) 位移图")
-        self.plot_y.showGrid(x=True, y=True, alpha=0.3)
+        self.curve_x = self.plot_x.plot(pen=pg.mkPen('#5ac8fa', width=2), symbol='o', symbolSize=5, symbolBrush='#5ac8fa')
+        self.curve_x.setClipToView(True)
 
-        self.plot_mgr = PlotManager(self.plot_x, self.plot_y, self.fps)
+        self.plot_y = pg.PlotWidget(title="输电塔竖向 (Y轴) 振动位移")
+        self.plot_y.showGrid(x=True, y=True, alpha=0.3)
+        self.curve_y = self.plot_y.plot(pen=pg.mkPen('#ff5c8a', width=2), symbol='o', symbolSize=5, symbolBrush='#ff5c8a')
+        self.curve_y.setClipToView(True)
+
+        # === 新增：当前帧高亮数据层 ===
+        # 采用醒目的金色五角星，带有白色描边，以区别于普通的圆形数据点
+        highlight_pen = pg.mkPen('#ff9800', width=1.0)
+        highlight_brush = pg.mkBrush(color='#ffeb3b') 
+        self.highlight_x = self.plot_x.plot([], [], pen=None, symbol='o', symbolSize=10, symbolBrush=highlight_brush, symbolPen=highlight_pen)
+        self.highlight_x.setZValue(10) # 确保高亮点渲染在最上层
+        
+        self.highlight_y = self.plot_y.plot([], [], pen=None, symbol='o', symbolSize=10, symbolBrush=highlight_brush, symbolPen=highlight_pen)
+        self.highlight_y.setZValue(10)
+        # ==============================
+
+        self.update_chart_labels()
         right_layout.addWidget(self.plot_x)
         right_layout.addWidget(self.plot_y)
 
@@ -696,14 +530,12 @@ class MainWindow(QMainWindow):
         content_layout.addLayout(right_layout, stretch=1)
         root_layout.addLayout(content_layout, stretch=1)
 
-        # 控制栏
         bottom_frame = QFrame()
         bottom_frame.setObjectName("controlBar")
         bottom_layout = QHBoxLayout(bottom_frame)
         bottom_layout.setContentsMargins(10, 8, 10, 8)
         bottom_layout.setSpacing(8)
 
-        # 播放控制
         self.btn_play = QPushButton("播放")
         self.btn_play.setIcon(self._std_icon(QStyle.StandardPixmap.SP_MediaPlay))
         self.btn_prev = QPushButton("上一帧")
@@ -711,10 +543,9 @@ class MainWindow(QMainWindow):
         self.btn_next = QPushButton("下一帧")
         self.btn_next.setIcon(self._std_icon(QStyle.StandardPixmap.SP_MediaSeekForward))
 
-        # 滑块和帧控制
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setEnabled(False)
-        self.slider.setTracking(False)
+        self.slider.setTracking(False) 
 
         self.label_frame_text = QLabel("帧:")
         self.spin_frame = QSpinBox()
@@ -723,7 +554,6 @@ class MainWindow(QMainWindow):
         self.spin_frame.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
         self.spin_frame.setMinimumWidth(92)
         self.label_frame_total = QLabel("/ 0")
-
         self.label_step = QLabel("步长:")
         self.spin_step = QSpinBox()
         self.spin_step.setRange(1, 100)
@@ -731,13 +561,14 @@ class MainWindow(QMainWindow):
         self.spin_step.setSuffix(" 帧")
         self.spin_step.setEnabled(False)
 
-        # 画质选择
-        self.label_quality = QLabel("画质:")
-        self.combo_quality = QComboBox()
-        self.combo_quality.addItems(QUALITY_ORDER)
-        self.combo_quality.setEnabled(False)
+        self.label_preview_scale = QLabel("预览:")
+        self.spin_preview_scale = QSpinBox()
+        self.spin_preview_scale.setRange(25, 100)
+        self.spin_preview_scale.setSingleStep(5)
+        self.spin_preview_scale.setValue(100)
+        self.spin_preview_scale.setSuffix(" %")
+        self.spin_preview_scale.setEnabled(False)
 
-        # 亮度对比度
         self.label_brightness = QLabel("亮度:")
         self.slider_brightness = QSlider(Qt.Orientation.Horizontal)
         self.slider_brightness.setRange(-100, 100)
@@ -756,7 +587,6 @@ class MainWindow(QMainWindow):
         self.chk_keep_calib.setChecked(True)
         self.chk_keep_calib.setEnabled(False)
 
-        # 信号连接
         self.btn_play.clicked.connect(self.toggle_play)
         self.btn_prev.clicked.connect(lambda: self.seek_frame(-self.spin_step.value()))
         self.btn_next.clicked.connect(lambda: self.seek_frame(self.spin_step.value()))
@@ -767,9 +597,8 @@ class MainWindow(QMainWindow):
         self.slider_brightness.valueChanged.connect(self.on_adjustment_changed)
         self.slider_contrast.valueChanged.connect(self.on_adjustment_changed)
         self.chk_keep_calib.toggled.connect(self.on_keep_calib_toggled)
-        self.combo_quality.currentTextChanged.connect(self.on_quality_changed)
+        self.spin_preview_scale.valueChanged.connect(self.on_preview_scale_changed)
 
-        # 添加控件到布局
         for widget in [self.btn_play, self.btn_prev, self.btn_next]:
             widget.setEnabled(False)
 
@@ -783,8 +612,8 @@ class MainWindow(QMainWindow):
         bottom_layout.addSpacing(10)
         bottom_layout.addWidget(self.label_step)
         bottom_layout.addWidget(self.spin_step)
-        bottom_layout.addWidget(self.label_quality)
-        bottom_layout.addWidget(self.combo_quality)
+        bottom_layout.addWidget(self.label_preview_scale)
+        bottom_layout.addWidget(self.spin_preview_scale)
         bottom_layout.addSpacing(10)
         bottom_layout.addWidget(self.label_brightness)
         bottom_layout.addWidget(self.slider_brightness)
@@ -793,7 +622,6 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self.chk_keep_calib)
         root_layout.addWidget(bottom_frame)
 
-        # 状态栏
         status_frame = QFrame()
         status_frame.setObjectName("statusBar")
         status_layout = QHBoxLayout(status_frame)
@@ -804,12 +632,10 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(status_frame)
 
     def resizeEvent(self, event):
-        """窗口大小改变事件"""
         super().resizeEvent(event)
         self.render_frame()
 
-    def set_state(self, state: str):
-        """设置应用状态"""
+    def set_state(self, state):
         self.state = state
         msgs = {
             "IDLE": "空闲。滚轮缩放，右键按住拖动画面，左下角可点击播放/暂停。",
@@ -822,7 +648,6 @@ class MainWindow(QMainWindow):
         self.render_frame()
 
     def toggle_play(self):
-        """切换播放/暂停"""
         if self.play_timer.isActive():
             self.play_timer.stop()
             self.btn_play.setIcon(self._std_icon(QStyle.StandardPixmap.SP_MediaPlay))
@@ -833,12 +658,12 @@ class MainWindow(QMainWindow):
             self.btn_play.setText("暂停")
 
     def _playback_interval_ms(self):
-        """计算播放间隔"""
         step_size = max(1, self.spin_step.value())
+        # 高帧率视频按真实时间会产生 1ms 级刷新，Qt 主线程会被解码/绘制压满。
+        # 这里限制显示刷新上限约 60 FPS，同时保留按步长推进的帧号语义。
         return max(16, int(1000 * step_size / max(self.fps, 1.0)))
 
     def play_next_frame(self):
-        """播放下一帧"""
         if self.is_seeking:
             return
         next_interval = self._playback_interval_ms()
@@ -854,80 +679,68 @@ class MainWindow(QMainWindow):
             self.btn_play.setText("播放")
 
     def load_video(self):
-        """加载视频文件"""
-        filename, _ = QFileDialog.getOpenFileName(
-            self, "选择视频文件", "", "Video Files (*.mp4 *.avi *.mov *.mkv *.wmv)"
-        )
+        filename, _ = QFileDialog.getOpenFileName(self, "选择视频文件", "", "Video Files (*.mp4 *.avi *.mov)")
         if not filename:
             return
+        if filename:
+            self.video_path = filename  # 保存视频路径
 
-        self.video_path = filename  # 保存视频路径
+            if self.play_timer.isActive(): self.toggle_play()
+            if self.cap: self.cap.release()
+            
+            self.cap = cv2.VideoCapture(filename)
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
+            self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
+            
+            self.video_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.video_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            self.apply_preview_scale()
+            self.video_widget.reset_view()
 
-        if self.play_timer.isActive():
-            self.toggle_play()
-        if self.cap:
-            self.cap.release()
-
-        self.cap = cv2.VideoCapture(filename)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
-        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
-        self.video_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.video_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-        # 重置数据
-        self.marks.clear()
-        self.plot_mgr.clear()
-        self.origin_pt = None
-        self.calib_pt1 = None
-        self.calib_line = None
-        self.physics_unit = "单位"
-        self.current_frame_idx = -1
-        self.decoder_next_frame_idx = -1
-        self.base_frame = None
-        self.base_qimage = None
-        self.adjusted_qimage = None
-        self.frame_cache.clear()
-        self.first_time_sec = None
-        self.current_quality = "Ultra"
-
-        # 应用初始缩放和画质
-        self.apply_quality_scale()
-        self.video_widget.reset_view()
-        self.reset_adjustments(update_frame=False)
-
-        # 更新控件
-        self.slider.blockSignals(True)
-        self.slider.setRange(0, self.total_frames - 1)
-        self.slider.setValue(0)
-        self.slider.blockSignals(False)
-        self.spin_frame.blockSignals(True)
-        self.spin_frame.setRange(0, self.total_frames - 1)
-        self.spin_frame.setValue(0)
-        self.spin_frame.blockSignals(False)
-        self.label_frame_total.setText(f"/ {self.total_frames - 1}")
-
-        # 启用控件
-        for widget in [self.slider, self.btn_play, self.btn_prev, self.btn_next,
-                       self.spin_step, self.spin_frame, self.combo_quality,
-                       self.slider_brightness, self.slider_contrast, self.chk_keep_calib]:
-            widget.setEnabled(True)
-        for action in self.video_actions:
-            action.setEnabled(True)
-
-        # 更新图表管理器
-        self.plot_mgr.set_fps(self.fps)
-        self.seek_frame(0, absolute=True)
-        self.set_state("IDLE")
+            self.marks.clear()
+            self.origin_pt = None
+            self.calib_pt1 = None
+            self.calib_line = None
+            self.physics_unit = "单位"
+            self.current_frame_idx = -1 
+            self.decoder_next_frame_idx = -1
+            self.base_frame = None
+            self.base_qimage = None
+            self.adjusted_qimage = None
+            self.frame_cache.clear()
+            self.first_time_sec = None # 重置时间零点基准
+            self.reset_adjustments(update_frame=False)
+            
+            self.update_chart_labels()
+            self.update_plots()
+            
+            self.slider.blockSignals(True)
+            self.slider.setRange(0, self.total_frames - 1)
+            self.slider.setValue(0)
+            self.slider.blockSignals(False)
+            self.spin_frame.blockSignals(True)
+            self.spin_frame.setRange(0, self.total_frames - 1)
+            self.spin_frame.setValue(0)
+            self.spin_frame.blockSignals(False)
+            self.label_frame_total.setText(f"/ {self.total_frames - 1}")
+            
+            for widget in [self.slider, self.btn_play, self.btn_prev, self.btn_next, self.spin_step, self.spin_preview_scale,
+                           self.spin_frame, self.slider_brightness, self.slider_contrast, self.chk_keep_calib]:
+                widget.setEnabled(True)
+            for action in self.video_actions:
+                action.setEnabled(True)
+            
+            self.seek_frame(0, absolute=True)
+            self.set_state("IDLE")
 
     def reset_label_view(self):
-        """重置视图"""
         self.video_widget.reset_view()
         self.reset_adjustments(update_frame=True)
         self.render_frame()
 
-    def reset_adjustments(self, update_frame: bool = True):
-        """重置亮度对比度"""
+    def reset_adjustments(self, update_frame=True):
         self.brightness = 0
         self.contrast = 1.0
         for slider, value in [(self.slider_brightness, 0), (self.slider_contrast, 100)]:
@@ -937,22 +750,18 @@ class MainWindow(QMainWindow):
         if update_frame and self.base_frame is not None:
             self._refresh_adjusted_frame()
 
-    def apply_quality_scale(self):
-        """应用画质缩放"""
-        scale = QUALITY_PRESETS.get(self.current_quality, 1.0)
-        base_scale = min(1.0, self.preview_max_w / max(self.video_w, 1),
-                         self.preview_max_h / max(self.video_h, 1))
-        final_scale = base_scale * scale
-        self.video_widget.canvas_w = max(1, int(self.video_w * final_scale))
-        self.video_widget.canvas_h = max(1, int(self.video_h * final_scale))
+    def apply_preview_scale(self):
+        base_scale = min(1.0, self.preview_max_w / max(self.video_w, 1), self.preview_max_h / max(self.video_h, 1))
+        scale = base_scale * self.preview_scale_percent / 100.0
+        self.video_widget.canvas_w = max(1, int(self.video_w * scale))
+        self.video_widget.canvas_h = max(1, int(self.video_h * scale))
 
-    def on_quality_changed(self, quality: str):
-        """画质改变事件"""
+    def on_preview_scale_changed(self, value):
         if not self.cap:
             return
-        self.current_quality = quality
+        self.preview_scale_percent = value
         target = max(0, self.current_frame_idx)
-        self.apply_quality_scale()
+        self.apply_preview_scale()
         self.frame_cache.clear()
         self.base_frame = None
         self.base_qimage = None
@@ -961,19 +770,16 @@ class MainWindow(QMainWindow):
         self.decoder_next_frame_idx = -1
         self.seek_frame(target, absolute=True)
 
-    def seek_frame(self, val: int, absolute: bool = False):
-        """跳转到指定帧"""
-        if not self.cap:
-            return
+    def seek_frame(self, val, absolute=False):
+        if not self.cap: return
         if self.is_seeking:
             return
-
+        
         target_idx = val if absolute else self.current_frame_idx + val
         target_idx = max(0, min(target_idx, self.total_frames - 1))
         if target_idx == self.current_frame_idx and self.base_qimage is not None:
             return
 
-        # 检查缓存
         if target_idx in self.frame_cache:
             self.base_frame, self.base_qimage = self.frame_cache.pop(target_idx)
             self.frame_cache[target_idx] = (self.base_frame, self.base_qimage)
@@ -983,9 +789,10 @@ class MainWindow(QMainWindow):
         self.is_seeking = True
         try:
             diff = target_idx - self.current_frame_idx
+            
             ret = False
             frame = None
-
+            
             decoder_is_aligned = self.decoder_next_frame_idx == self.current_frame_idx + 1
             if diff == 1 and decoder_is_aligned:
                 ret, frame = self.cap.read()
@@ -996,16 +803,14 @@ class MainWindow(QMainWindow):
             else:
                 self.cap.set(cv2.CAP_PROP_POS_FRAMES, target_idx)
                 ret, frame = self.cap.read()
-
+                
             if ret:
                 self._set_current_frame(target_idx, frame)
         finally:
             self.is_seeking = False
 
-    def _set_current_frame(self, target_idx: int, frame):
-        """设置当前帧"""
-        resized = cv2.resize(frame, (self.video_widget.canvas_w, self.video_widget.canvas_h),
-                            interpolation=cv2.INTER_LINEAR)
+    def _set_current_frame(self, target_idx, frame):
+        resized = cv2.resize(frame, (self.video_widget.canvas_w, self.video_widget.canvas_h), interpolation=cv2.INTER_LINEAR)
         self.base_frame = resized
         self.base_qimage = self._frame_to_qimage(self.base_frame)
         self.frame_cache[target_idx] = (self.base_frame, self.base_qimage)
@@ -1014,8 +819,7 @@ class MainWindow(QMainWindow):
         self.decoder_next_frame_idx = target_idx + 1
         self._finish_seek(target_idx)
 
-    def _finish_seek(self, target_idx: int):
-        """完成跳转"""
+    def _finish_seek(self, target_idx):
         self.current_frame_idx = target_idx
         self._refresh_adjusted_frame()
 
@@ -1028,14 +832,11 @@ class MainWindow(QMainWindow):
 
         self.render_frame()
 
-    def _frame_to_qimage(self, frame) -> QImage:
-        """将 OpenCV 帧转换为 QImage"""
+    def _frame_to_qimage(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return QImage(rgb.data, frame.shape[1], frame.shape[0],
-                     3 * frame.shape[1], QImage.Format.Format_RGB888).copy()
+        return QImage(rgb.data, frame.shape[1], frame.shape[0], 3 * frame.shape[1], QImage.Format.Format_RGB888).copy()
 
     def _refresh_adjusted_frame(self):
-        """应用亮度对比度调整"""
         if self.base_frame is None:
             return
         if self.brightness == 0 and abs(self.contrast - 1.0) < 0.001:
@@ -1046,45 +847,37 @@ class MainWindow(QMainWindow):
         self.video_widget.set_frame(self.adjusted_qimage)
 
     def on_slider_pressed(self):
-        """滑块按下"""
         self.is_slider_dragging = True
 
-    def on_slider_moved(self, position: int):
-        """滑块移动"""
+    def on_slider_moved(self, position):
         self.spin_frame.blockSignals(True)
         self.spin_frame.setValue(position)
         self.spin_frame.blockSignals(False)
 
     def on_slider_released(self):
-        """滑块释放"""
         self.is_slider_dragging = False
         self.seek_frame(self.slider.value(), absolute=True)
 
     def on_frame_spin_finished(self):
-        """帧输入框完成"""
         if self.cap:
             self.seek_frame(self.spin_frame.value(), absolute=True)
 
     def on_adjustment_changed(self):
-        """亮度对比度改变"""
         self.brightness = self.slider_brightness.value()
         self.contrast = self.slider_contrast.value() / 100.0
         self._refresh_adjusted_frame()
         self.render_frame()
 
-    def on_keep_calib_toggled(self, checked: bool):
-        """标尺显示切换"""
+    def on_keep_calib_toggled(self, checked):
         self.show_calib_line = checked
         self.render_frame()
 
-    def on_video_moved(self, x: float, y: float):
-        """鼠标在视频上移动"""
+    def on_video_moved(self, x, y):
         if not (x == -1.0 and y == -1.0):
             self.mouse_curr_pos = (x, y)
         self.render_frame()
 
     def render_frame(self):
-        """渲染当前帧和覆盖层"""
         if self.base_qimage is None:
             return
 
@@ -1123,26 +916,21 @@ class MainWindow(QMainWindow):
             video_info=video_info,
         )
 
-    def on_video_clicked(self, x: float, y: float):
-        """视频点击事件"""
+        # === 新增：画面刷新时，同步更新图表高亮点 ===
+        self.update_highlight()
+
+    def on_video_clicked(self, x, y):
         if self.state == "CALIBRATING_1":
             self.calib_pt1 = (x, y)
             self.set_state("CALIBRATING_2")
-
+            
         elif self.state == "CALIBRATING_2":
             pixel_dist = math.hypot(x - self.calib_pt1[0], y - self.calib_pt1[1])
-            if pixel_dist == 0:
-                pixel_dist = 1.0
-
-            real_dist, ok1 = QInputDialog.getDouble(
-                self, "标定物理尺寸",
-                f"像素跨度: {pixel_dist:.2f} px\n请输入实际物理长度:",
-                100.0, 0.001, 100000, 3
-            )
+            if pixel_dist == 0: pixel_dist = 1.0
+            
+            real_dist, ok1 = QInputDialog.getDouble(self, "标定物理尺寸", f"像素跨度: {pixel_dist:.2f} px\n请输入实际物理长度:", 100.0, 0.001, 100000, 3)
             if ok1 and real_dist > 0:
-                unit_str, ok2 = QInputDialog.getText(
-                    self, "设置单位名称", "请输入单位简称 (如 mm, m):", text="mm"
-                )
+                unit_str, ok2 = QInputDialog.getText(self, "设置单位名称", "请输入单位简称 (如 mm, m):", text="mm")
                 if ok2 and unit_str.strip():
                     self.physics_unit = unit_str.strip()
                 self.scale_factor = real_dist / pixel_dist
@@ -1151,47 +939,102 @@ class MainWindow(QMainWindow):
                     "p2": (x, y),
                     "text": f"{real_dist:.3f} {self.physics_unit}",
                 }
-                self.plot_mgr.set_unit(self.physics_unit)
-                QMessageBox.information(
-                    self, "成功",
-                    f"标定映射建立！\n1 像素 = {self.scale_factor:.4f} {self.physics_unit}"
-                )
+                self.update_chart_labels()
+                QMessageBox.information(self, "成功", f"标定映射建立！\n1 像素 = {self.scale_factor:.4f} {self.physics_unit}")
             self.calib_pt1 = None
             self.set_state("IDLE")
-
+            
         elif self.state == "SET_ORIGIN":
             self.origin_pt = (x, y)
             self.set_state("IDLE")
-
+            
         elif self.state == "MARKING":
             if not self.origin_pt:
-                QMessageBox.warning(self, "警告", "请先点击屏幕建立坐标原点！")
+                QMessageBox.warning(self, "警告", "请先第3步点击屏幕建立坐标原点！")
                 self.set_state("IDLE")
                 return
-
+                
             rel_x = (x - self.origin_pt[0]) * self.scale_factor
             rel_y = (self.origin_pt[1] - y) * self.scale_factor
             time_sec = self.current_frame_idx / self.fps
-
-            # 设置零点时刻基准
+            
+            # 核心新增逻辑（2）：如果是全场打下的第一个特征点，锁死该点的时间为时间零点基准
             if self.first_time_sec is None:
                 self.first_time_sec = time_sec
-                self.plot_mgr.set_first_time(self.first_time_sec)
-
+                self.update_chart_labels() # 更新图表的 X轴 标签为相对物理时间(s)
+            
             self.marks[self.current_frame_idx] = {
                 'time': time_sec, 'rel_x': rel_x, 'rel_y': rel_y, 'pixel_pt': (x, y)
             }
-            self.plot_mgr.add_point(self.current_frame_idx, rel_x, rel_y, time_sec)
-            self.plot_mgr.auto_range()
 
-            step_size = self.spin_step.value()
+            self.update_plots()
+            self.auto_range_plots()
+            
+            step_size = self.spin_step.value() 
             if self.current_frame_idx + step_size < self.total_frames:
-                self.seek_frame(step_size)
+                self.seek_frame(step_size) 
             else:
                 self.render_frame()
 
+    def update_chart_labels(self):
+        self.plot_x.getAxis('left').setLabel(f"X轴位移 ({self.physics_unit})", units=None)
+        self.plot_y.getAxis('left').setLabel(f"Y轴位移 ({self.physics_unit})", units=None)
+        
+        # 核心新增逻辑（2）：根据是否捕获到第一个点，动态更改右侧图表的横轴标题
+        if self.first_time_sec is not None:
+            self.plot_x.getAxis('bottom').setLabel("相对时间", units='s')
+            self.plot_y.getAxis('bottom').setLabel("相对时间", units='s')
+        else:
+            self.plot_x.getAxis('bottom').setLabel("时间/进度", units='帧数')
+            self.plot_y.getAxis('bottom').setLabel("时间/进度", units='帧数')
+
+    def update_plots(self):
+        """核心重构点（2）：绘图时若存在零点基准，横轴直接减去基准值做平移映射"""
+        sorted_keys = sorted(self.marks.keys())
+        
+        if self.first_time_sec is not None:
+            # 建立零点后，横坐标使用平移后的相对时间(s)
+            x_axis_data = [self.marks[k]['time'] - self.first_time_sec for k in sorted_keys]
+        else:
+            # 未建立零点前，横轴默认依然显示帧数
+            x_axis_data = [k for k in sorted_keys]
+            
+        xs = [self.marks[k]['rel_x'] for k in sorted_keys]
+        ys = [self.marks[k]['rel_y'] for k in sorted_keys]
+        
+        self.curve_x.setData(x_axis_data, xs)
+        self.curve_y.setData(x_axis_data, ys)
+
+        # === 新增：图表整体重绘时，刷新高亮点状态 ===
+        self.update_highlight()
+
+    def update_highlight(self):
+        """核心新增：独立更新图表中的当前帧高亮点"""
+        if self.current_frame_idx in self.marks:
+            # 如果当前帧存在捕捉数据
+            d = self.marks[self.current_frame_idx]
+            
+            # 判断横坐标使用的是绝对帧数还是相对时间(s)
+            if self.first_time_sec is not None:
+                x_val = d['time'] - self.first_time_sec
+            else:
+                x_val = self.current_frame_idx
+
+            # 更新高亮点的坐标
+            self.highlight_x.setData([x_val], [d['rel_x']])
+            self.highlight_y.setData([x_val], [d['rel_y']])
+        else:
+            # 如果当前帧没有捕捉数据，则清空高亮层（隐藏高亮点）
+            self.highlight_x.setData([], [])
+            self.highlight_y.setData([], [])
+
+    def auto_range_plots(self):
+        self.plot_x.enableAutoRange(axis=pg.ViewBox.XYAxes, enable=True)
+        self.plot_y.enableAutoRange(axis=pg.ViewBox.XYAxes, enable=True)
+        self.plot_x.autoRange()
+        self.plot_y.autoRange()
+
     def export_current_frame(self):
-        """导出当前帧"""
         if not self.cap or self.current_frame_idx < 0:
             QMessageBox.warning(self, "无法导出", "请先加载视频并定位到需要导出的帧。")
             return
@@ -1200,8 +1043,7 @@ class MainWindow(QMainWindow):
 
         default_name = f"frame_{self.current_frame_idx:06d}.png"
         filename, _ = QFileDialog.getSaveFileName(
-            self, "导出当前帧原始画面", default_name,
-            "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;Bitmap Image (*.bmp)"
+            self, "导出当前帧原始画面", default_name, "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;Bitmap Image (*.bmp)"
         )
         if not filename:
             return
@@ -1222,47 +1064,31 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "导出失败", "写入图像文件失败，请检查文件路径或格式。")
 
     def export_to_excel(self):
-        """导出数据到Excel"""
-        if not self.marks:
-            QMessageBox.warning(self, "提示", "没有标记数据可导出！")
-            return
-        if self.play_timer.isActive():
-            self.toggle_play()
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "数据存档为 Excel", "avalanche_vibration_report.xlsx", "Excel Files (*.xlsx)"
-        )
-        if not filename:
-            return
-        try:
-            rows = []
-            for frame, time, rx, ry in self.plot_mgr.get_data_for_export():
-                d = self.marks.get(frame)
-                if not d:
-                    continue
-                rel_time_val = d['time'] - self.first_time_sec if self.first_time_sec is not None else 0.0
-
-                rows.append({
-                    'Frame_Index (绝对帧数)': frame,
-                    'Absolute_Time (绝对时间-秒)': d['time'],
-                    'Relative_Time (相对时间-秒/零点平移)': rel_time_val,
-                    f'Physical_X ({self.physics_unit})': rx,
-                    f'Physical_Y ({self.physics_unit})': ry,
-                    'Canvas_Pixel_X': d['pixel_pt'][0],
-                    'Canvas_Pixel_Y': d['pixel_pt'][1]
-                })
-            pd.DataFrame(rows).to_excel(filename, index=False)
-            QMessageBox.information(self, "成功", f"报告成功写入到本地：\n{filename}")
-        except Exception as e:
-            QMessageBox.critical(self, "导出失败", str(e))
-
-    def closeEvent(self, event):
-        """窗口关闭事件"""
-        if self.play_timer.isActive():
-            self.play_timer.stop()
-        if self.cap:
-            self.cap.release()
-        super().closeEvent(event)
-
+        if not self.marks: return
+        if self.play_timer.isActive(): self.toggle_play() 
+        filename, _ = QFileDialog.getSaveFileName(self, "数据存档为 Excel", "avalanche_vibration_report.xlsx", "Excel Files (*.xlsx)")
+        if filename:
+            try:
+                sorted_keys = sorted(self.marks.keys())
+                data_list = []
+                for k in sorted_keys:
+                    d = self.marks[k]
+                    # 核心新增逻辑（3）：在 Excel 中同时写入绝对时间、绝对帧数、以及平移后的“相对试验时间”
+                    rel_time_val = d['time'] - self.first_time_sec if self.first_time_sec is not None else 0.0
+                    
+                    data_list.append({
+                        'Frame_Index (绝对帧数)': k, 
+                        'Absolute_Time (绝对时间-秒)': d['time'],
+                        'Relative_Time (相对时间-秒/零点平移)': rel_time_val,
+                        f'Physical_X ({self.physics_unit})': d['rel_x'],
+                        f'Physical_Y ({self.physics_unit})': d['rel_y'],
+                        'Canvas_Pixel_X': d['pixel_pt'][0], 
+                        'Canvas_Pixel_Y': d['pixel_pt'][1]
+                    })
+                pd.DataFrame(data_list).to_excel(filename, index=False)
+                QMessageBox.information(self, "成功", f"报告成功写入到本地：\n{filename}")
+            except Exception as e:
+                QMessageBox.critical(self, "导出失败", str(e))
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
