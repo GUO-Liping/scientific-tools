@@ -113,7 +113,7 @@ def plot_complete_profiles(process_df):
         current_linestyle = linestyles[idx % len(linestyles)]
         
         # 左图：合速度剖面
-        ax1.plot(data['True_Velocity (mm/s)'], data['Height_Y (mm)'], 
+        ax1.plot(data['True_Velocity (mm/s)'], data['Height_Y (mm)']-data['Height_Y (mm)'].min(), 
                  linestyle=current_linestyle, 
                  marker=current_marker, 
                  color=line_color, 
@@ -125,7 +125,7 @@ def plot_complete_profiles(process_df):
                  label=interval)
                  
         # 右图：合位移剖面
-        ax2.plot(data['True_Displacement (mm)'], data['Height_Y (mm)'], 
+        ax2.plot(data['True_Displacement (mm)'], data['Height_Y (mm)']-data['Height_Y (mm)'].min(), 
                  linestyle=current_linestyle, 
                  marker=current_marker, 
                  color=line_color, 
@@ -159,7 +159,7 @@ def plot_complete_profiles(process_df):
 # 自动化执行一键测试
 # ==========================================
 if __name__ == "__main__":
-    target_file = '111-front_tracked_data.xlsx' 
+    target_file = '117-front_tracked_data.xlsx' 
     
     try:
         process_sliding_window_data(target_file)
