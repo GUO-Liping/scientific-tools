@@ -1,3 +1,4 @@
+# 优化了opencv多线程读取视频
 import sys
 import os
 import cv2
@@ -6,17 +7,23 @@ import pandas as pd
 import pyqtgraph as pg
 import math
 from collections import OrderedDict
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QWidget, QLabel, QFileDialog, QInputDialog, QMessageBox, QSlider, QSpinBox,
-                             QFrame, QSizePolicy, QToolBar, QCheckBox, QComboBox, QToolButton, QMenu)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRectF, QPointF, QSize
-from PyQt6.QtGui import (QImage, QWheelEvent, QMouseEvent, QPaintEvent, QPainter, QColor, QPen, QFont,
-                         QAction, QKeySequence, QIcon, QPixmap, QActionGroup, QBrush, QPolygonF)
+from queue import Queue, Empty
+
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
+    QPushButton, QWidget, QLabel, QFileDialog, QInputDialog, QMessageBox, QSlider, QSpinBox,
+    QFrame, QSizePolicy, QToolBar, QCheckBox, QComboBox, QToolButton, QMenu
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRectF, QPointF, QSize, QThread
+from PyQt6.QtGui import (
+    QImage, QWheelEvent, QMouseEvent, QPaintEvent, QPainter, QColor, QPen, QFont,
+    QAction, QKeySequence, QIcon, QPixmap, QActionGroup, QPolygonF
+)
 
 cv2.setUseOptimized(True)
 pg.setConfigOptions(background="#101418", foreground="#d7dde8", antialias=True)
 
-# 核心修复：分离 X 轴和 Y 轴的曲线颜色库，完美继承旧版(蓝/粉)的视觉体验
+# 轨迹曲线颜色库
 TRACK_COLORS_X = ["#5ac8fa", "#ff9800", "#8cc63f", "#00ffff", "#c678dd", "#ffeb3b", "#00bcd4", "#4caf50"]
 TRACK_COLORS_Y = ["#ff5c8a", "#ff4d4f", "#f7931e", "#9e005d", "#3f51b5", "#e91e63", "#00ff00", "#ffffff"]
 TRACK_COLORS_VIEW = ["#ff4d4f", "#5ac8fa", "#ffeb3b", "#8cc63f", "#c678dd", "#f7931e", "#00ffff", "#ff5c8a"]
@@ -56,6 +63,161 @@ QCheckBox::indicator { width: 16px; height: 16px; }
 QLabel#statusLabel { color: #ffd166; font-weight: 600; }
 """
 
+# ==========================================================
+# 1. 多线程后台解码工作线程 (VideoDecoderWorker)
+# ==========================================================
+
+class VideoDecoderWorker(QThread):
+    """独立解码子线程：负责 IO 读取、Seek 优化、Buffer 预读与画质转换"""
+    frame_loaded = pyqtSignal(int, QImage, object)  # 帧索引, 渲染用 QImage, 对应 base_frame (numpy)
+    video_info_loaded = pyqtSignal(dict)
+    error_signal = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        self.cap = None
+        self.file_path = ""
+        self.requested_seek_idx = None
+        self.is_playing = False
+        self.play_next_idx = 0
+        self.render_scale = 1.0
+        self.brightness = 0
+        self.contrast = 1.0
+        self.buffer_queue = Queue(maxsize=30)  # 30 帧预读缓冲区
+        self.is_running = True
+        self.decoder_next_idx = -1
+
+    def open_video(self, path):
+        self.file_path = path
+        self.requested_seek_idx = 0
+        self.is_playing = False
+
+    def request_seek(self, index):
+        """拖拽定位：清空预读缓存，插队处理最新 Seek 请求"""
+        self.is_playing = False
+        self.clear_buffer()
+        self.requested_seek_idx = index
+
+    def start_playback(self, start_idx):
+        self.clear_buffer()
+        self.play_next_idx = start_idx
+        self.is_playing = True
+
+    def stop_playback(self):
+        self.is_playing = False
+        self.clear_buffer()
+
+    def clear_buffer(self):
+        while not self.buffer_queue.empty():
+            try:
+                self.buffer_queue.get_nowait()
+            except Empty:
+                break
+
+    def set_render_scale(self, scale):
+        self.render_scale = scale
+
+    def set_adjustments(self, brightness, contrast):
+        self.brightness = brightness
+        self.contrast = contrast
+
+    def run(self):
+        while self.is_running:
+            # 1. 响应异步视频打开
+            if self.file_path:
+                path = self.file_path
+                self.file_path = ""
+                if self.cap:
+                    self.cap.release()
+                self.cap = cv2.VideoCapture(path, cv2.CAP_FFMPEG)
+                if not self.cap.isOpened():
+                    self.error_signal.emit("OpenCV 无法打开该视频，可能文件损坏")
+                    continue
+
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
+                total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
+                w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                self.decoder_next_idx = -1
+
+                self.video_info_loaded.emit({
+                    "total_frames": total_frames,
+                    "fps": fps, "width": w, "height": h,
+                    "path": path
+                })
+
+            if not self.cap or not self.cap.isOpened():
+                self.msleep(20)
+                continue
+
+            # 2. 优先处理 Seek 拖拽请求 (覆盖防抖机制)
+            if self.requested_seek_idx is not None:
+                target_idx = self.requested_seek_idx
+                self.requested_seek_idx = None
+                frame = self._read_frame_at(target_idx)
+                if frame is not None and self.requested_seek_idx is None:
+                    qimg, proc_frame = self._process_frame(frame)
+                    self.frame_loaded.emit(target_idx, qimg, proc_frame)
+                continue
+
+            # 3. 播放模式：后台多线程连续预读并填充 Buffer
+            if self.is_playing:
+                if not self.buffer_queue.full():
+                    frame = self._read_frame_at(self.play_next_idx)
+                    if frame is not None:
+                        qimg, proc_frame = self._process_frame(frame)
+                        self.buffer_queue.put((self.play_next_idx, qimg, proc_frame))
+                        self.play_next_idx += 1
+                    else:
+                        self.is_playing = False
+                else:
+                    self.msleep(5)
+            else:
+                self.msleep(10)
+
+    def _read_frame_at(self, target_idx):
+        diff = target_idx - (self.decoder_next_idx - 1)
+        ret, frame = False, None
+        if diff == 1 and self.decoder_next_idx >= 0:
+            ret, frame = self.cap.read()
+        elif 1 < diff <= 10 and self.decoder_next_idx >= 0:
+            for _ in range(diff - 1):
+                self.cap.grab()
+            ret, frame = self.cap.read()
+        else:
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, target_idx)
+            ret, frame = self.cap.read()
+
+        if ret:
+            self.decoder_next_idx = target_idx + 1
+            return frame
+        return None
+
+    def _process_frame(self, frame):
+        """后台子线程完成色彩转换、缩放与明暗调节，降低 GUI 渲染负载"""
+        out_frame = frame
+        if self.brightness != 0 or abs(self.contrast - 1.0) > 0.001:
+            out_frame = cv2.convertScaleAbs(frame, alpha=self.contrast, beta=self.brightness)
+
+        if self.render_scale != 1.0:
+            new_w = int(out_frame.shape[1] * self.render_scale)
+            new_h = int(out_frame.shape[0] * self.render_scale)
+            out_frame = cv2.resize(out_frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+        rgb = cv2.cvtColor(out_frame, cv2.COLOR_BGR2RGB)
+        qimg = QImage(rgb.data, rgb.shape[1], rgb.shape[0], 3 * rgb.shape[1], QImage.Format.Format_RGB888).copy()
+        return qimg, out_frame
+
+    def stop(self):
+        self.is_running = False
+        self.wait()
+
+
+# ==========================================================
+# 2. 视频画布渲染组件 (VideoWidget)
+# ==========================================================
+
 class VideoWidget(QWidget):
     clicked_pos = pyqtSignal(float, float)
     moved_pos = pyqtSignal(float, float)
@@ -64,8 +226,8 @@ class VideoWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.setStyleSheet("background-color: #05070a; border: 1px solid #263241; border-radius: 8px;")
-        self.setCursor(Qt.CursorShape.BlankCursor) 
-        self.setMouseTracking(True) 
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setMouseTracking(True)
         self.setMinimumSize(720, 420)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -75,7 +237,7 @@ class VideoWidget(QWidget):
         
         self.is_panning = False
         self.last_mouse_pos = None
-        self.canvas_w = 0 
+        self.canvas_w = 0
         self.canvas_h = 0
         self.frame_qimage = None
         self.overlay_state = {}
@@ -83,7 +245,7 @@ class VideoWidget(QWidget):
 
     def set_frame(self, qimg):
         self.frame_qimage = qimg
-        self.update() 
+        self.update()
 
     def set_overlay_state(self, **state):
         self.overlay_state = state
@@ -133,7 +295,7 @@ class VideoWidget(QWidget):
         canvas_x = (pos.x() - x_offset) / self.zoom_level
         canvas_y = (pos.y() - y_offset) / self.zoom_level
         if 0 <= canvas_x < self.canvas_w and 0 <= canvas_y < self.canvas_h:
-            return float(canvas_x), float(canvas_y) 
+            return float(canvas_x), float(canvas_y)
         return None
 
     def _to_screen_point(self, canvas_pt):
@@ -167,13 +329,14 @@ class VideoWidget(QWidget):
             painter.drawEllipse(screen, radius, radius)
             return screen
 
-        # 提取标定状态
         scale_factor = state.get("scale_factor", 1.0)
         physics_unit = state.get("physics_unit", "单位")
-        # 修复2：采用 calib_line 是否存在来严格判断是否已经标定，而不是依赖单位名称
         is_calibrated = (state.get("calib_line") is not None)
         coord_origin = state.get("coord_origin")
         coord_angle = state.get("coord_angle", 0.0)
+        show_overlays = state.get("show_overlays", True)
+        mode = state.get("mode")
+        mouse_pos = state.get("mouse_curr_pos")
 
         def get_formatted_coords(pt):
             if is_calibrated and coord_origin:
@@ -187,11 +350,10 @@ class VideoWidget(QWidget):
             else:
                 return f"X:{int(pt[0])} Y:{int(pt[1])} px"
 
-        # 1. 视频信息
         video_info = state.get("video_info")
         if video_info:
             display_path = video_info['path']
-            if len(display_path) > 100: display_path = display_path[:30] + " ... " + display_path[-70:]
+            if len(display_path) > 100: display_path = display_path[:30] + " ... " + display_path[-90:]
             info_text = (
                 f"✌️视频地址 {display_path}\n"
                 f"🖼️分辨率 {video_info['resolution']}  |  🎬 帧率 {video_info['fps']} FPS  |  "
@@ -199,153 +361,141 @@ class VideoWidget(QWidget):
             )
             draw_textbox(info_text, 8, 8)
 
-        # 2. 标定线与十字叉辅助线
-        aux_lines = state.get("aux_lines", [])
-        aux_current = state.get("aux_current_points", [])
-        aux_intersections = state.get("aux_intersections", [])
-        aux_midpoints = state.get("aux_midpoints", [])
-        
-        painter.setPen(QPen(QColor("#c678dd"), 2, Qt.PenStyle.DashLine))
-        for line in aux_lines:
-            painter.drawLine(self._to_screen_point(line[0]), self._to_screen_point(line[1]))
-            draw_point(line[0], "#c678dd", 3); draw_point(line[1], "#c678dd", 3)
+        # =============== 控件图层隔离 ===============
+        if show_overlays:
+            aux_lines = state.get("aux_lines", [])
+            aux_current = state.get("aux_current_points", [])
+            aux_intersections = state.get("aux_intersections", [])
+            aux_midpoints = state.get("aux_midpoints", [])
             
-        if aux_current and len(aux_current) == 1:
-            draw_point(aux_current[0], "#c678dd", 3)
-            if state.get("mouse_curr_pos"):
-                painter.setPen(QPen(QColor("#c678dd"), 2, Qt.PenStyle.DashLine))
-                painter.drawLine(self._to_screen_point(aux_current[0]), self._to_screen_point(state["mouse_curr_pos"]))
-        
-        # 修复1：完整补回透视交点与网格阵列的绘制逻辑！
-        if len(aux_intersections) == 4:
-            C0, C1, C2, C3 = aux_intersections
-            painter.setPen(QPen(QColor(0, 255, 255, 200), 1.5, Qt.PenStyle.SolidLine))
-            p0 = self._to_screen_point(C0)
-            p1 = self._to_screen_point(C1)
-            p2 = self._to_screen_point(C2)
-            p3 = self._to_screen_point(C3)
-            painter.drawLine(p0, p1)
-            painter.drawLine(p1, p2)
-            painter.drawLine(p2, p3)
-            painter.drawLine(p3, p0)
+            painter.setPen(QPen(QColor(0, 255, 255, 150), 1.5, Qt.PenStyle.SolidLine))
+            for line in aux_lines:
+                painter.drawLine(self._to_screen_point(line[0]), self._to_screen_point(line[1]))
+                draw_point(line[0], "#00ffff", 3); draw_point(line[1], "#00ffff", 3)
+                
+            if aux_current and len(aux_current) == 1:
+                draw_point(aux_current[0], "#00ffff", 3)
+                if state.get("mouse_curr_pos"):
+                    painter.setPen(QPen(QColor(0, 255, 255, 180), 1.5, Qt.PenStyle.DashLine))
+                    painter.drawLine(self._to_screen_point(aux_current[0]), self._to_screen_point(state["mouse_curr_pos"]))
             
-            grid_size = state.get("grid_size", 10.0)
-            if grid_size <= 0: grid_size = 10.0 # 防止除以0
-            
-            len_top = math.hypot(C1[0]-C0[0], C1[1]-C0[1])
-            len_left = math.hypot(C3[0]-C0[0], C3[1]-C0[1])
-            phys_w = len_top * scale_factor
-            phys_h = len_left * scale_factor
-            steps_x = min(200, max(1, int(round(phys_w / grid_size))))
-            steps_y = min(200, max(1, int(round(phys_h / grid_size))))
-            
-            painter.setPen(QPen(QColor(0, 255, 255, 60), 1.0, Qt.PenStyle.DashLine))
-            for i in range(1, steps_x):
-                t = i / steps_x
-                pt_top_x = C0[0] + t * (C1[0] - C0[0])
-                pt_top_y = C0[1] + t * (C1[1] - C0[1])
-                pt_bot_x = C3[0] + t * (C2[0] - C3[0])
-                pt_bot_y = C3[1] + t * (C2[1] - C3[1])
-                painter.drawLine(self._to_screen_point((pt_top_x, pt_top_y)), self._to_screen_point((pt_bot_x, pt_bot_y)))
-            for i in range(1, steps_y):
-                t = i / steps_y
-                pt_left_x = C0[0] + t * (C3[0] - C0[0])
-                pt_left_y = C0[1] + t * (C3[1] - C0[1])
-                pt_right_x = C1[0] + t * (C2[0] - C1[0])
-                pt_right_y = C1[1] + t * (C2[1] - C1[1])
-                painter.drawLine(self._to_screen_point((pt_left_x, pt_left_y)), self._to_screen_point((pt_right_x, pt_right_y)))
+            if len(aux_intersections) == 4:
+                C0, C1, C2, C3 = aux_intersections
+                painter.setPen(QPen(QColor(0, 255, 255, 200), 1.5, Qt.PenStyle.SolidLine))
+                p0, p1, p2, p3 = self._to_screen_point(C0), self._to_screen_point(C1), self._to_screen_point(C2), self._to_screen_point(C3)
+                painter.drawLine(p0, p1); painter.drawLine(p1, p2)
+                painter.drawLine(p2, p3); painter.drawLine(p3, p0)
+                
+                grid_size = state.get("grid_size", 10.0)
+                if grid_size <= 0: grid_size = 10.0
+                
+                len_top = math.hypot(C1[0]-C0[0], C1[1]-C0[1])
+                len_left = math.hypot(C3[0]-C0[0], C3[1]-C0[1])
+                phys_w = len_top * scale_factor
+                phys_h = len_left * scale_factor
+                steps_x = min(200, max(1, int(round(phys_w / grid_size))))
+                steps_y = min(200, max(1, int(round(phys_h / grid_size))))
+                
+                painter.setPen(QPen(QColor(0, 255, 255, 60), 1.0, Qt.PenStyle.DashLine))
+                for i in range(1, steps_x):
+                    t = i / steps_x
+                    pt_top_x = C0[0] + t * (C1[0] - C0[0]); pt_top_y = C0[1] + t * (C1[1] - C0[1])
+                    pt_bot_x = C3[0] + t * (C2[0] - C3[0]); pt_bot_y = C3[1] + t * (C2[1] - C3[1])
+                    painter.drawLine(self._to_screen_point((pt_top_x, pt_top_y)), self._to_screen_point((pt_bot_x, pt_bot_y)))
+                for i in range(1, steps_y):
+                    t = i / steps_y
+                    pt_left_x = C0[0] + t * (C3[0] - C0[0]); pt_left_y = C0[1] + t * (C3[1] - C0[1])
+                    pt_right_x = C1[0] + t * (C2[0] - C1[0]); pt_right_y = C1[1] + t * (C2[1] - C1[1])
+                    painter.drawLine(self._to_screen_point((pt_left_x, pt_left_y)), self._to_screen_point((pt_right_x, pt_right_y)))
 
-        for pt in aux_intersections:
-            p_scr = draw_point(pt, "#ff4d4f", 5)
-            painter.setPen(QPen(QColor("#ff4d4f")))
-            painter.drawText(p_scr + QPointF(6, 6), "交点")
+            for pt in aux_intersections:
+                p_scr = draw_point(pt, "#ff4d4f", 5)
+                painter.setPen(QPen(QColor("#ff4d4f")))
+                painter.drawText(p_scr + QPointF(6, 6), "交点")
 
-        for i, pt in enumerate(aux_midpoints):
-            p_scr = draw_point(pt, "#e5c07b", 5)
-            painter.setPen(QPen(QColor("#e5c07b")))
-            lbl = "视场中心" if i == 0 else "中点"
-            painter.drawText(p_scr + QPointF(6, -6), lbl)
+            for i, pt in enumerate(aux_midpoints):
+                p_scr = draw_point(pt, "#e5c07b", 5)
+                painter.setPen(QPen(QColor("#e5c07b")))
+                lbl = "视场中心" if i == 0 else "中点"
+                painter.drawText(p_scr + QPointF(6, -6), lbl)
 
-        # 标定主线
-        if state.get("calib_pt1"):
-            p1 = self._to_screen_point(state["calib_pt1"])
-            draw_point(state["calib_pt1"], "#ff4d4f", 4)
-            if state.get("mode") == "CALIBRATING_2" and state.get("mouse_curr_pos"):
-                p2 = self._to_screen_point(state["mouse_curr_pos"])
-                painter.setPen(QPen(QColor("#ffd43b"), 1.3))
+            # 标定主线
+            if state.get("calib_pt1"):
+                p1 = self._to_screen_point(state.get("calib_pt1"))
+                draw_point(state.get("calib_pt1"), "#ff4d4f", 4)
+                if mode == "CALIBRATING_2" and mouse_pos:
+                    p2 = self._to_screen_point(mouse_pos)
+                    painter.setPen(QPen(QColor("#ffd43b"), 1.3))
+                    painter.drawLine(p1, p2)
+
+            calib_line = state.get("calib_line")
+            if calib_line:
+                p1 = self._to_screen_point(calib_line["p1"])
+                p2 = self._to_screen_point(calib_line["p2"])
+                painter.setPen(QPen(QColor("#ffd43b"), 1.5))
                 painter.drawLine(p1, p2)
+                draw_point(calib_line["p1"], "#ffd43b", 4); draw_point(calib_line["p2"], "#ffd43b", 4)
+                painter.setPen(QPen(QColor("#ffd43b")))
+                mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
+                painter.drawText(mid + QPointF(8, -8), calib_line["text"])
 
-        calib_line = state.get("calib_line")
-        if calib_line:
-            p1 = self._to_screen_point(calib_line["p1"])
-            p2 = self._to_screen_point(calib_line["p2"])
-            painter.setPen(QPen(QColor("#ffd43b"), 1.5))
-            painter.drawLine(p1, p2)
-            draw_point(calib_line["p1"], "#ffd43b", 4)
-            draw_point(calib_line["p2"], "#ffd43b", 4)
-            painter.setPen(QPen(QColor("#ffd43b")))
-            mid = QPointF((p1.x() + p2.x()) / 2, (p1.y() + p2.y()) / 2)
-            painter.drawText(mid + QPointF(8, -8), calib_line["text"])
+            # 自定义坐标系 
+            if mode == "SET_COORD_2" and coord_origin and mouse_pos:
+                painter.setPen(QPen(QColor("#ff9f1c"), 1.5, Qt.PenStyle.DashLine))
+                painter.drawLine(self._to_screen_point(coord_origin), self._to_screen_point(mouse_pos))
+                
+            if coord_origin:
+                origin_scr = self._to_screen_point(coord_origin)
+                L = max(widget_rect.width(), widget_rect.height()) * 2 
+                ux, uy = math.cos(coord_angle), -math.sin(coord_angle)
+                vx, vy = -math.sin(coord_angle), -math.cos(coord_angle)
 
-        # 3. 自定义坐标系 (支持旋转)
-        if state.get("mode") == "SET_COORD_2" and coord_origin and state.get("mouse_curr_pos"):
-            painter.setPen(QPen(QColor("#ff9f1c"), 1.5, Qt.PenStyle.DashLine))
-            painter.drawLine(self._to_screen_point(coord_origin), self._to_screen_point(state["mouse_curr_pos"]))
-            
-        if coord_origin:
-            origin_scr = self._to_screen_point(coord_origin)
-            L = max(widget_rect.width(), widget_rect.height()) * 2 
-            ux, uy = math.cos(coord_angle), -math.sin(coord_angle)
-            vx, vy = -math.sin(coord_angle), -math.cos(coord_angle)
+                painter.setPen(QPen(QColor(255, 159, 28, 180), 1.5))
+                painter.drawLine(self._to_screen_point((coord_origin[0] - L*ux, coord_origin[1] - L*uy)), 
+                                 self._to_screen_point((coord_origin[0] + L*ux, coord_origin[1] + L*uy)))
+                painter.setPen(QPen(QColor(76, 175, 80, 180), 1.5)) 
+                painter.drawLine(self._to_screen_point((coord_origin[0] - L*vx, coord_origin[1] - L*vy)), 
+                                 self._to_screen_point((coord_origin[0] + L*vx, coord_origin[1] + L*vy)))
 
-            painter.setPen(QPen(QColor(255, 159, 28, 180), 1.5))
-            painter.drawLine(self._to_screen_point((coord_origin[0] - L*ux, coord_origin[1] - L*uy)), 
-                             self._to_screen_point((coord_origin[0] + L*ux, coord_origin[1] + L*uy)))
-            painter.setPen(QPen(QColor(76, 175, 80, 180), 1.5)) 
-            painter.drawLine(self._to_screen_point((coord_origin[0] - L*vx, coord_origin[1] - L*vy)), 
-                             self._to_screen_point((coord_origin[0] + L*vx, coord_origin[1] + L*vy)))
+                painter.setPen(QPen(QColor("#ff9f1c")))
+                painter.drawText(self._to_screen_point((coord_origin[0] + 120*ux, coord_origin[1] + 120*uy)) + QPointF(5, -5), "X")
+                painter.setPen(QPen(QColor("#4caf50")))
+                painter.drawText(self._to_screen_point((coord_origin[0] + 120*vx, coord_origin[1] + 120*vy)) + QPointF(5, -5), "Y")
+                draw_point(coord_origin, "#ff4d4f", 5)
 
-            painter.setPen(QPen(QColor("#ff9f1c")))
-            painter.drawText(self._to_screen_point((coord_origin[0] + 120*ux, coord_origin[1] + 120*uy)) + QPointF(5, -5), "X")
-            painter.setPen(QPen(QColor("#4caf50")))
-            painter.drawText(self._to_screen_point((coord_origin[0] + 120*vx, coord_origin[1] + 120*vy)) + QPointF(5, -5), "Y")
-            draw_point(coord_origin, "#ff4d4f", 5)
+            # 测量线
+            measure_pt1 = state.get("measure_pt1")
+            measure_line = state.get("measure_line")
 
-        # 4. 测量与查询工具
-        mode = state.get("mode")
-        mouse_pos = state.get("mouse_curr_pos")
-        measure_pt1 = state.get("measure_pt1")
-        measure_line = state.get("measure_line")
+            if mode == "MEASURE_2" and measure_pt1 and mouse_pos:
+                p1_scr = self._to_screen_point(measure_pt1)
+                p2_scr = self._to_screen_point(mouse_pos)
+                painter.setPen(QPen(QColor("#00bcd4"), 1.5, Qt.PenStyle.DashLine))
+                painter.drawLine(p1_scr, p2_scr)
+                draw_point(measure_pt1, "#00bcd4", 4); draw_point(mouse_pos, "#00bcd4", 4)
+                
+                pixel_dist = math.hypot(mouse_pos[0]-measure_pt1[0], mouse_pos[1]-measure_pt1[1])
+                dist_str = f"{pixel_dist * scale_factor:.2f} {physics_unit}" if is_calibrated else f"{pixel_dist:.1f} px"
+                mid_scr = QPointF((p1_scr.x() + p2_scr.x()) / 2, (p1_scr.y() + p2_scr.y()) / 2)
+                draw_textbox(f"📏 实时长度: {dist_str}", mid_scr.x() + 10, mid_scr.y() + 10, QColor(0, 188, 212, 180))
 
+            if measure_line:
+                p1_scr = self._to_screen_point(measure_line["p1"])
+                p2_scr = self._to_screen_point(measure_line["p2"])
+                painter.setPen(QPen(QColor("#00bcd4"), 2.0))
+                painter.drawLine(p1_scr, p2_scr)
+                draw_point(measure_line["p1"], "#00bcd4", 5); draw_point(measure_line["p2"], "#00bcd4", 5)
+                
+                mid_scr = QPointF((p1_scr.x() + p2_scr.x()) / 2, (p1_scr.y() + p2_scr.y()) / 2)
+                box_text = f"📏 测量距离: {measure_line['dist_str']}\n🔸 起点: {measure_line['c1_str']}\n🔹 终点: {measure_line['c2_str']}"
+                draw_textbox(box_text, mid_scr.x() + 10, mid_scr.y() + 10, QColor(0, 188, 212, 180))
+
+        # =============== 全局常驻图层 ===============
         if mode in ["MEASURE_1", "MEASURE_2"] and mouse_pos:
             scr_m = self._to_screen_point(mouse_pos)
             coord_str = get_formatted_coords(mouse_pos)
             draw_textbox(f"📍 当前坐标: {coord_str}", scr_m.x() + 15, scr_m.y() + 15, QColor(0, 188, 212, 200))
 
-        if mode == "MEASURE_2" and measure_pt1 and mouse_pos:
-            p1_scr = self._to_screen_point(measure_pt1)
-            p2_scr = self._to_screen_point(mouse_pos)
-            painter.setPen(QPen(QColor("#00bcd4"), 1.5, Qt.PenStyle.DashLine))
-            painter.drawLine(p1_scr, p2_scr)
-            draw_point(measure_pt1, "#00bcd4", 4); draw_point(mouse_pos, "#00bcd4", 4)
-            
-            pixel_dist = math.hypot(mouse_pos[0]-measure_pt1[0], mouse_pos[1]-measure_pt1[1])
-            dist_str = f"{pixel_dist * scale_factor:.2f} {physics_unit}" if is_calibrated else f"{pixel_dist:.1f} px"
-            mid_scr = QPointF((p1_scr.x() + p2_scr.x()) / 2, (p1_scr.y() + p2_scr.y()) / 2)
-            draw_textbox(f"📏 距离: {dist_str}", mid_scr.x(), mid_scr.y())
-
-        if measure_line:
-            p1_scr = self._to_screen_point(measure_line["p1"])
-            p2_scr = self._to_screen_point(measure_line["p2"])
-            painter.setPen(QPen(QColor("#00bcd4"), 2.0))
-            painter.drawLine(p1_scr, p2_scr)
-            draw_point(measure_line["p1"], "#00bcd4", 5); draw_point(measure_line["p2"], "#00bcd4", 5)
-            
-            mid_scr = QPointF((p1_scr.x() + p2_scr.x()) / 2, (p1_scr.y() + p2_scr.y()) / 2)
-            box_text = f"📏 测量距离: {measure_line['dist_str']}\n🔸 起点: {measure_line['c1_str']}\n🔹 终点: {measure_line['c2_str']}"
-            draw_textbox(box_text, mid_scr.x() + 10, mid_scr.y() + 10, QColor(0, 188, 212, 180))
-
-        # 5. 渲染全部轨迹与标记点
         all_trails = state.get("all_trails", [])
         for i, trail in enumerate(all_trails):
             color_hex = TRACK_COLORS_VIEW[i % len(TRACK_COLORS_VIEW)]
@@ -363,7 +513,8 @@ class VideoWidget(QWidget):
             painter.setPen(QPen(QColor(color_hex)))
             painter.drawText(p + QPointF(10, -10), mark["text"])
 
-        if mouse_pos and mode not in ["MEASURE_1", "MEASURE_2"]:
+        # 全屏十字光标
+        if mouse_pos and mode != "IDLE":
             m = self._to_screen_point(mouse_pos)
             if widget_rect.contains(m.toPoint()):
                 painter.setPen(QPen(QColor(255, 255, 255, 175), 1))
@@ -409,36 +560,47 @@ class VideoWidget(QWidget):
             coords = self._get_canvas_coords(event.position().toPoint())
             if coords: self.moved_pos.emit(*coords)
 
+    def leaveEvent(self, event):
+        self.moved_pos.emit(-1.0, -1.0)
+        super().leaveEvent(event)
+
+
+# ==========================================================
+# 3. 主界面 (MainWindow)
+# ==========================================================
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("高速视频运动分析工具 V5.1 (全面修复)")
+        self.setWindowTitle("高速视频运动分析工具 V6.0 (多线程 Buffer 极速重构版)")
         self.resize(1600, 900)
 
-        self.cap = None
-        self.video_path = "" 
+        # 视频状态参数
+        self.video_path = ""
         self.total_frames = 0
         self.fps = 30.0
         self.video_w = 0
         self.video_h = 0
-        self.current_frame_idx = -1 
-        self.decoder_next_frame_idx = -1
+        self.current_frame_idx = -1
         self.base_frame = None       
         self.base_qimage = None
         self.adjusted_qimage = None
-        self.frame_cache = OrderedDict()
-        self.max_cached_frames = 24
         self.is_slider_dragging = False
-        self.is_seeking = False
+
+        # 初始化后台独立解码线程
+        self.decoder_worker = VideoDecoderWorker()
+        self.decoder_worker.video_info_loaded.connect(self.on_video_info_loaded)
+        self.decoder_worker.frame_loaded.connect(self.on_frame_loaded_from_worker)
+        self.decoder_worker.error_signal.connect(self.on_worker_error)
+        self.decoder_worker.start()
 
         self.state = "IDLE" 
         self.calib_pt1 = None
         self.calib_line = None
-        self.show_calib_line = True
         self.scale_factor = 1.0 
         self.physics_unit = "单位"
         self.grid_size = 10.0   
+        self.show_overlays = True 
         
         self.coord_origin = None   
         self.coord_angle = 0.0 
@@ -449,7 +611,6 @@ class MainWindow(QMainWindow):
         self.mouse_curr_pos = None 
         self.brightness = 0
         self.contrast = 1.0
-        
         self.render_scale = 1.0 
         self.points_per_frame = 1 
 
@@ -461,6 +622,7 @@ class MainWindow(QMainWindow):
         self.marks = {} 
         self.first_time_sec = None 
         
+        # 播放定时器（仅负责从 Buffer 提帧）
         self.play_timer = QTimer()
         self.play_timer.timeout.connect(self.play_next_frame)
         
@@ -489,13 +651,14 @@ class MainWindow(QMainWindow):
                 painter.drawLine(16, 6, 28, 6)
                 painter.drawLine(28, 6, 28, 12)
             elif icon_type == "calib":
-                painter.translate(16, 16)
-                painter.rotate(-45)
-                painter.drawRoundedRect(-14, -6, 28, 12, 2, 2)
-                painter.drawLine(-8, -6, -8, -2)
-                painter.drawLine(-2, -6, -2, -2)
-                painter.drawLine(4, -6, 4, -2)
-                painter.drawLine(10, -6, 10, -2)
+                painter.drawLine(4, 16, 28, 16)
+                painter.drawLine(4, 16, 10, 10)
+                painter.drawLine(4, 16, 10, 22)
+                painter.drawLine(28, 16, 22, 10)
+                painter.drawLine(28, 16, 22, 22)
+                painter.drawLine(16, 12, 16, 20)
+                painter.drawLine(12, 14, 12, 18)
+                painter.drawLine(20, 14, 20, 18)
             elif icon_type == "origin":
                 painter.drawLine(6, 6, 6, 26)
                 painter.drawLine(6, 26, 26, 26)
@@ -506,15 +669,13 @@ class MainWindow(QMainWindow):
                 painter.setBrush(color)
                 painter.drawEllipse(QPointF(6, 26), 2.0, 2.0)
             elif icon_type == "measure":
-                # 修复4：彻底重绘测量图标，改为“双箭头尺寸标注线”，不再是倾斜卡尺
-                painter.drawLine(4, 16, 28, 16)
-                painter.drawLine(4, 16, 10, 10)
-                painter.drawLine(4, 16, 10, 22)
-                painter.drawLine(28, 16, 22, 10)
-                painter.drawLine(28, 16, 22, 22)
-                painter.drawLine(16, 12, 16, 20)
-                painter.drawLine(12, 14, 12, 18)
-                painter.drawLine(20, 14, 20, 18)
+                painter.translate(16, 16)
+                painter.rotate(-45)
+                painter.drawRoundedRect(-14, -6, 28, 12, 2, 2)
+                painter.drawLine(-8, -6, -8, -2)
+                painter.drawLine(-2, -6, -2, -2)
+                painter.drawLine(4, -6, 4, -2)
+                painter.drawLine(10, -6, 10, -2)
             elif icon_type == "mark":
                 painter.drawEllipse(8, 8, 16, 16)
                 painter.drawLine(16, 2, 16, 6)
@@ -531,15 +692,6 @@ class MainWindow(QMainWindow):
                 painter.setPen(QPen(color, 1.5, Qt.PenStyle.DashLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
                 painter.drawLine(6, 8, 26, 26)
                 painter.drawLine(26, 8, 6, 26)
-            elif icon_type == "clear":
-                painter.drawRoundedRect(8, 10, 16, 18, 2, 2)
-                painter.drawLine(4, 10, 28, 10)
-                painter.drawLine(12, 10, 12, 6)
-                painter.drawLine(12, 6, 20, 6)
-                painter.drawLine(20, 6, 20, 10)
-                painter.drawLine(12, 14, 12, 24)
-                painter.drawLine(16, 14, 16, 24)
-                painter.drawLine(20, 14, 20, 24)
             elif icon_type == "export":
                 painter.drawLine(16, 4, 16, 20)
                 painter.drawLine(10, 14, 16, 20)
@@ -629,9 +781,6 @@ class MainWindow(QMainWindow):
         
         self.act_aux_line = QAction(self._custom_icon("aux"), "透视辅助线", self)
         self.act_aux_line.triggered.connect(lambda: self.set_state("DRAW_AUX"))
-        
-        self.act_clear_aux = QAction(self._custom_icon("clear"), "清空辅助线", self)
-        self.act_clear_aux.triggered.connect(self.clear_aux_lines)
 
         self.act_reset_view = QAction(self._custom_icon("reset"), "画面重置", self)
         self.act_reset_view.triggered.connect(self.reset_label_view)
@@ -642,8 +791,7 @@ class MainWindow(QMainWindow):
 
         self.video_actions = [
             self.act_calib, self.act_coord, self.act_measure, self.act_mark,
-            self.act_aux_line, self.act_clear_aux,
-            self.act_export, self.act_import,
+            self.act_aux_line, self.act_export, self.act_import,
             self.act_export_frame, self.act_reset_view,
         ]
         for action in self.video_actions:
@@ -666,7 +814,6 @@ class MainWindow(QMainWindow):
         
         tool_menu = self.menuBar().addMenu("工具")
         tool_menu.addAction(self.act_aux_line)
-        tool_menu.addAction(self.act_clear_aux)
 
         view_menu = self.menuBar().addMenu("视图")
         view_menu.addAction(self.act_reset_view)
@@ -683,7 +830,6 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.act_calib)
         toolbar.addAction(self.act_coord)
         toolbar.addAction(self.act_aux_line)
-        toolbar.addAction(self.act_clear_aux)
         toolbar.addSeparator()
         
         toolbar.addAction(self.act_measure)
@@ -729,7 +875,6 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
         
         toolbar.addAction(self.act_reset_view)
-        
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
     def start_marking_mode(self):
@@ -756,13 +901,11 @@ class MainWindow(QMainWindow):
         self.highlights_y.clear()
         
         for i in range(num_points):
-            # 修复3：分离X轴和Y轴的调色板，确保无论多少点，X图和Y图的曲线颜色互不干扰
             c_hex_x = TRACK_COLORS_X[i % len(TRACK_COLORS_X)]
             c_hex_y = TRACK_COLORS_Y[i % len(TRACK_COLORS_Y)]
             
             pen_x = pg.mkPen(c_hex_x, width=2)
             brush_x = pg.mkBrush(c_hex_x)
-            
             pen_y = pg.mkPen(c_hex_y, width=2)
             brush_y = pg.mkBrush(c_hex_y)
             
@@ -875,9 +1018,9 @@ class MainWindow(QMainWindow):
         self.slider_contrast.setFixedWidth(110)
         self.slider_contrast.setEnabled(False)
 
-        self.chk_keep_calib = QCheckBox("显示标尺")
-        self.chk_keep_calib.setChecked(True)
-        self.chk_keep_calib.setEnabled(False)
+        self.chk_show_overlays = QCheckBox("显示辅助控件")
+        self.chk_show_overlays.setChecked(True)
+        self.chk_show_overlays.setEnabled(False)
 
         self.btn_play.clicked.connect(self.toggle_play)
         self.btn_prev.clicked.connect(lambda: self.seek_frame(-self.spin_step.value()))
@@ -888,7 +1031,7 @@ class MainWindow(QMainWindow):
         self.spin_frame.editingFinished.connect(self.on_frame_spin_finished)
         self.slider_brightness.valueChanged.connect(self.on_adjustment_changed)
         self.slider_contrast.valueChanged.connect(self.on_adjustment_changed)
-        self.chk_keep_calib.toggled.connect(self.on_keep_calib_toggled)
+        self.chk_show_overlays.toggled.connect(self.on_show_overlays_toggled)
 
         for widget in [self.btn_play, self.btn_prev, self.btn_next]: widget.setEnabled(False)
 
@@ -909,7 +1052,7 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self.slider_brightness)
         bottom_layout.addWidget(self.label_contrast)
         bottom_layout.addWidget(self.slider_contrast)
-        bottom_layout.addWidget(self.chk_keep_calib)
+        bottom_layout.addWidget(self.chk_show_overlays)
         root_layout.addWidget(bottom_frame)
 
         status_frame = QFrame()
@@ -920,6 +1063,202 @@ class MainWindow(QMainWindow):
         self.status_label.setObjectName("statusLabel")
         status_layout.addWidget(self.status_label)
         root_layout.addWidget(status_frame)
+
+    # ==========================================================
+    # 异步多线程交互与解码回调
+    # ==========================================================
+
+    def load_video(self):
+        filename, _ = QFileDialog.getOpenFileName(self, "选择视频文件", "", "Video Files (*.mp4 *.avi *.mov *.mkv)")
+        if not filename: return
+        self.video_path = filename 
+
+        if self.play_timer.isActive(): self.toggle_play()
+        self.status_label.setText("状态: 正在后台异步建立视频帧索引...")
+        self.decoder_worker.open_video(filename)
+
+    def on_video_info_loaded(self, info):
+        self.total_frames = info["total_frames"]
+        self.fps = info["fps"]
+        self.video_w = info["width"]
+        self.video_h = info["height"]
+        
+        self.video_widget.canvas_w = self.video_w
+        self.video_widget.canvas_h = self.video_h
+        
+        self.marks.clear()
+        self.coord_origin = None
+        self.coord_angle = 0.0
+        self.calib_pt1 = None
+        self.calib_line = None
+        self.measure_pt1 = None
+        self.measure_line = None
+        self.clear_aux_lines()
+        self.physics_unit = "单位"
+        self.grid_size = 10.0
+        self.current_frame_idx = -1 
+        self.base_frame = None
+        self.base_qimage = None
+        self.adjusted_qimage = None
+        self.first_time_sec = None
+        
+        self.points_per_frame = 1 
+        self._init_plot_curves(self.points_per_frame) 
+        self.update_chart_labels()
+        self.update_plots()
+        
+        self.slider.blockSignals(True)
+        self.slider.setRange(0, self.total_frames - 1)
+        self.slider.setValue(0)
+        self.slider.blockSignals(False)
+        self.spin_frame.blockSignals(True)
+        self.spin_frame.setRange(0, self.total_frames - 1)
+        self.spin_frame.setValue(0)
+        self.spin_frame.blockSignals(False)
+        self.label_frame_total.setText(f"/ {self.total_frames - 1}")
+        
+        for widget in [self.slider, self.btn_play, self.btn_prev, self.btn_next, self.spin_step, self.combo_render_quality,
+                       self.spin_frame, self.slider_brightness, self.slider_contrast, self.chk_show_overlays, self.btn_trail]:
+            widget.setEnabled(True)
+        for action in self.video_actions: action.setEnabled(True)
+        
+        self.reset_adjustments(update_frame=False)
+        self.set_state("IDLE")
+        self.video_widget.fit_to_view()
+
+    def on_worker_error(self, err_msg):
+        QMessageBox.critical(self, "视频打开错误", err_msg)
+        self.status_label.setText("状态: 加载视频出错")
+
+    def seek_frame(self, val, absolute=False):
+        if not self.total_frames: return
+        target_idx = val if absolute else self.current_frame_idx + val
+        target_idx = max(0, min(target_idx, self.total_frames - 1))
+        
+        # 将 Seek 指令异步发送至解帧线程
+        self.decoder_worker.request_seek(target_idx)
+
+    def on_frame_loaded_from_worker(self, frame_idx, qimg, base_frame):
+        """后台子线程解完帧后通过信号回调，主线程仅更新 QImage"""
+        self.current_frame_idx = frame_idx
+        self.base_frame = base_frame
+        self.base_qimage = qimg
+        self.adjusted_qimage = qimg
+        self.video_widget.set_frame(qimg)
+        self._finish_seek(frame_idx)
+
+    def _finish_seek(self, target_idx):
+        self.slider.blockSignals(True)
+        self.slider.setValue(target_idx)
+        self.slider.blockSignals(False)
+        self.spin_frame.blockSignals(True)
+        self.spin_frame.setValue(target_idx)
+        self.spin_frame.blockSignals(False)
+
+        if self.state == "MARKING":
+            pts = self.points_per_frame
+            curr_len = len(self.marks.get(target_idx, []))
+            if curr_len >= pts: curr_len = 0
+            self.status_label.setText(f"状态: 【捕捉模式】 设置为每帧 {pts} 个点。请点击目标（当前第 {curr_len+1}/{pts} 个点）")
+
+        self.render_frame()
+
+    # ==========================================================
+    # 播放器控制与定时器
+    # ==========================================================
+
+    def toggle_play(self):
+        if self.play_timer.isActive():
+            self.play_timer.stop()
+            self.decoder_worker.stop_playback()
+            self.btn_play.setIcon(self._custom_icon("play"))
+            self.btn_play.setText("播放")
+        else:
+            self.decoder_worker.start_playback(self.current_frame_idx)
+            self.play_timer.start(self._playback_interval_ms())
+            self.btn_play.setIcon(self._custom_icon("pause"))
+            self.btn_play.setText("暂停")
+
+    def _playback_interval_ms(self):
+        step_size = max(1, self.spin_step.value())
+        return max(16, int(1000 * step_size / max(self.fps, 1.0)))
+
+    def play_next_frame(self):
+        """播放定时器触发：只从后台多线程预读 Buffer 提取解好的帧"""
+        if not self.play_timer.isActive(): return
+        
+        if not self.decoder_worker.buffer_queue.empty():
+            item = self.decoder_worker.buffer_queue.get_nowait()
+            frame_idx, qimg, base_frame = item
+            self.on_frame_loaded_from_worker(frame_idx, qimg, base_frame)
+
+        if self.current_frame_idx >= self.total_frames - 1:
+            self.toggle_play()
+
+    def on_render_quality_changed(self, idx):
+        if idx == 0: scale = 1.0
+        elif idx == 1: scale = 0.5
+        elif idx == 2: scale = 0.25
+        
+        self.render_scale = scale
+        self.decoder_worker.set_render_scale(scale)
+        if self.current_frame_idx >= 0:
+            self.seek_frame(self.current_frame_idx, absolute=True)
+
+    def on_adjustment_changed(self):
+        self.brightness = self.slider_brightness.value()
+        self.contrast = self.slider_contrast.value() / 100.0
+        # 将画面明暗/对比度调整下发至后台线程
+        self.decoder_worker.set_adjustments(self.brightness, self.contrast)
+        if self.current_frame_idx >= 0:
+            self.seek_frame(self.current_frame_idx, absolute=True)
+
+    def reset_label_view(self):
+        self.video_widget.fit_to_view()
+        self.reset_adjustments(update_frame=True)
+        self.render_frame()
+
+    def reset_adjustments(self, update_frame=True):
+        self.brightness = 0
+        self.contrast = 1.0
+        for slider, value in [(self.slider_brightness, 0), (self.slider_contrast, 100)]:
+            slider.blockSignals(True)
+            slider.setValue(value)
+            slider.blockSignals(False)
+            
+        self.combo_render_quality.blockSignals(True)
+        self.combo_render_quality.setCurrentIndex(0)
+        self.combo_render_quality.blockSignals(False)
+        
+        self.render_scale = 1.0
+        self.decoder_worker.set_render_scale(1.0)
+        self.decoder_worker.set_adjustments(0, 1.0)
+            
+        if update_frame and self.current_frame_idx >= 0:
+            self.seek_frame(self.current_frame_idx, absolute=True)
+
+    def on_slider_pressed(self): self.is_slider_dragging = True
+
+    def on_slider_value_changed(self, value):
+        self.spin_frame.blockSignals(True)
+        self.spin_frame.setValue(value)
+        self.spin_frame.blockSignals(False)
+        if not self.is_slider_dragging: self.seek_frame(value, absolute=True)
+
+    def on_slider_released(self):
+        self.is_slider_dragging = False
+        self.seek_frame(self.slider.value(), absolute=True)
+
+    def on_frame_spin_finished(self):
+        val = self.spin_frame.value()
+        self.slider.blockSignals(True)
+        self.slider.setValue(val)
+        self.slider.blockSignals(False)
+        self.seek_frame(val, absolute=True)
+
+    def on_show_overlays_toggled(self, checked):
+        self.show_overlays = checked
+        self.render_frame()
 
     def recalc_all_marks(self):
         if not self.coord_origin: return
@@ -941,14 +1280,6 @@ class MainWindow(QMainWindow):
 
         self.update_plots()
         self.auto_range_plots()
-
-    def on_render_quality_changed(self, idx):
-        if idx == 0: self.render_scale = 1.0
-        elif idx == 1: self.render_scale = 0.5
-        elif idx == 2: self.render_scale = 0.25
-        if self.cap and self.current_frame_idx >= 0:
-            self.frame_cache.clear() 
-            self.seek_frame(self.current_frame_idx, absolute=True) 
 
     def on_plot_point_clicked(self, item, points, *args):
         if not points: return
@@ -979,8 +1310,8 @@ class MainWindow(QMainWindow):
             "CALIBRATING_2": "【尺寸标定】: 请点击定标尺的【终点】 (自动吸附辅助交点/中点)",
             "SET_COORD_1": "【建立坐标系】: 请点击设定【坐标原点 (0,0)】 (自动吸附辅助点)",
             "SET_COORD_2": "【建立坐标系】: 请点击画面确定【X轴正方向】(随后会弹窗供你微调角度)",
-            "MEASURE_1": "【测量/查询】: 悬停查看坐标。请点击起点测量距离 (标定后显示真实物理尺寸)。",
-            "MEASURE_2": "【测量/查询】: 请点击终点以固定测量线段。",
+            "MEASURE_1": "【测量/查询】: 连续测量模式。请点击起点测量距离 (标定后显示真实物理尺寸)。",
+            "MEASURE_2": "【测量/查询】: 请点击终点以固定测量线段，随后可继续下一次测量。",
             "MARKING": f"【捕捉模式】: 设置为每帧 {pts} 个点。请点击目标（当前第 {curr_len+1}/{pts} 个点）",
             "DRAW_AUX": "【辅助线模式】: 请画出透视视场下的 4 条轮廓线段，将利用交比自动计算视场中心和透视中点。"
         }
@@ -1007,234 +1338,6 @@ class MainWindow(QMainWindow):
         py = ((x1*y2 - y1*x2)*(y3 - y4) - (y1 - y2)*(x3*y4 - y3*x4)) / den
         return (px, py)
 
-    def toggle_play(self):
-        if self.play_timer.isActive():
-            self.play_timer.stop()
-            self.btn_play.setIcon(self._custom_icon("play"))
-            self.btn_play.setText("播放")
-        else:
-            self.play_timer.start(self._playback_interval_ms())
-            self.btn_play.setIcon(self._custom_icon("pause"))
-            self.btn_play.setText("暂停")
-
-    def _playback_interval_ms(self):
-        step_size = max(1, self.spin_step.value())
-        return max(16, int(1000 * step_size / max(self.fps, 1.0)))
-
-    def play_next_frame(self):
-        if self.is_seeking: return
-        next_interval = self._playback_interval_ms()
-        if self.play_timer.interval() != next_interval:
-            self.play_timer.setInterval(next_interval)
-        step_size = self.spin_step.value()
-        if self.current_frame_idx + step_size < self.total_frames:
-            self.seek_frame(step_size)
-        else:
-            self.seek_frame(self.total_frames - 1, absolute=True)
-            self.play_timer.stop()
-            self.btn_play.setIcon(self._custom_icon("play"))
-            self.btn_play.setText("播放")
-
-    def load_video(self):
-        filename, _ = QFileDialog.getOpenFileName(self, "选择视频文件", "", "Video Files (*.mp4 *.avi *.mov)")
-        if not filename: return
-        self.video_path = filename 
-
-        if self.play_timer.isActive(): self.toggle_play()
-        if self.cap: self.cap.release()
-        
-        self.cap = cv2.VideoCapture(filename)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
-        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
-        
-        self.video_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.video_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        
-        self.video_widget.canvas_w = self.video_w
-        self.video_widget.canvas_h = self.video_h
-        
-        self.marks.clear()
-        self.coord_origin = None
-        self.coord_angle = 0.0
-        self.calib_pt1 = None
-        self.calib_line = None
-        self.measure_pt1 = None
-        self.measure_line = None
-        self.clear_aux_lines()
-        self.physics_unit = "单位"
-        self.grid_size = 10.0
-        self.current_frame_idx = -1 
-        self.decoder_next_frame_idx = -1
-        self.base_frame = None
-        self.base_qimage = None
-        self.adjusted_qimage = None
-        self.frame_cache.clear()
-        self.first_time_sec = None
-        
-        self.points_per_frame = 1 
-        self._init_plot_curves(self.points_per_frame) 
-        
-        self.update_chart_labels()
-        self.update_plots()
-        
-        self.slider.blockSignals(True)
-        self.slider.setRange(0, self.total_frames - 1)
-        self.slider.setValue(0)
-        self.slider.blockSignals(False)
-        self.spin_frame.blockSignals(True)
-        self.spin_frame.setRange(0, self.total_frames - 1)
-        self.spin_frame.setValue(0)
-        self.spin_frame.blockSignals(False)
-        self.label_frame_total.setText(f"/ {self.total_frames - 1}")
-        
-        for widget in [self.slider, self.btn_play, self.btn_prev, self.btn_next, self.spin_step, self.combo_render_quality,
-                       self.spin_frame, self.slider_brightness, self.slider_contrast, self.chk_keep_calib, self.btn_trail]:
-            widget.setEnabled(True)
-        for action in self.video_actions: action.setEnabled(True)
-        
-        self.reset_adjustments(update_frame=False)
-        self.seek_frame(0, absolute=True)
-        self.set_state("IDLE")
-        self.video_widget.fit_to_view()
-
-    def reset_label_view(self):
-        self.video_widget.fit_to_view()
-        self.reset_adjustments(update_frame=True)
-        self.render_frame()
-
-    def reset_adjustments(self, update_frame=True):
-        self.brightness = 0
-        self.contrast = 1.0
-        for slider, value in [(self.slider_brightness, 0), (self.slider_contrast, 100)]:
-            slider.blockSignals(True)
-            slider.setValue(value)
-            slider.blockSignals(False)
-            
-        self.combo_render_quality.blockSignals(True)
-        self.combo_render_quality.setCurrentIndex(0)
-        self.combo_render_quality.blockSignals(False)
-        
-        was_scaled = self.render_scale != 1.0
-        self.render_scale = 1.0
-            
-        if update_frame and self.base_frame is not None:
-            if was_scaled:
-                self.frame_cache.clear()
-                self.seek_frame(self.current_frame_idx, absolute=True)
-            else:
-                self._refresh_adjusted_frame()
-
-    def seek_frame(self, val, absolute=False):
-        if not self.cap: return
-        if self.is_seeking: return
-        
-        target_idx = val if absolute else self.current_frame_idx + val
-        target_idx = max(0, min(target_idx, self.total_frames - 1))
-        if target_idx == self.current_frame_idx and self.base_qimage is not None: return
-
-        if target_idx in self.frame_cache:
-            self.base_frame, self.base_qimage = self.frame_cache.pop(target_idx)
-            self.frame_cache[target_idx] = (self.base_frame, self.base_qimage)
-            self._finish_seek(target_idx)
-            return
-
-        self.is_seeking = True
-        try:
-            diff = target_idx - self.current_frame_idx
-            ret = False
-            frame = None
-            decoder_is_aligned = self.decoder_next_frame_idx == self.current_frame_idx + 1
-            
-            if diff == 1 and decoder_is_aligned:
-                ret, frame = self.cap.read()
-            elif 1 < diff <= 10 and decoder_is_aligned: 
-                for _ in range(diff - 1): self.cap.grab()
-                ret, frame = self.cap.read()
-            else:
-                self.cap.set(cv2.CAP_PROP_POS_FRAMES, target_idx)
-                ret, frame = self.cap.read()
-                
-            if ret: self._set_current_frame(target_idx, frame)
-        finally:
-            self.is_seeking = False
-
-    def _set_current_frame(self, target_idx, frame):
-        if self.render_scale != 1.0:
-            new_w = int(self.video_w * self.render_scale)
-            new_h = int(self.video_h * self.render_scale)
-            self.base_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-        else:
-            self.base_frame = frame
-            
-        self.base_qimage = self._frame_to_qimage(self.base_frame)
-        self.frame_cache[target_idx] = (self.base_frame, self.base_qimage)
-        while len(self.frame_cache) > self.max_cached_frames:
-            self.frame_cache.popitem(last=False)
-        self.decoder_next_frame_idx = target_idx + 1
-        self._finish_seek(target_idx)
-
-    def _finish_seek(self, target_idx):
-        self.current_frame_idx = target_idx
-        self._refresh_adjusted_frame()
-        self.slider.blockSignals(True)
-        self.slider.setValue(target_idx)
-        self.slider.blockSignals(False)
-        self.spin_frame.blockSignals(True)
-        self.spin_frame.setValue(target_idx)
-        self.spin_frame.blockSignals(False)
-
-        if self.state == "MARKING":
-            pts = self.points_per_frame
-            curr_len = len(self.marks.get(target_idx, []))
-            if curr_len >= pts: curr_len = 0
-            self.status_label.setText(f"状态: 【捕捉模式】 设置为每帧 {pts} 个点。请点击目标（当前第 {curr_len+1}/{pts} 个点）")
-
-        self.render_frame()
-
-    def _frame_to_qimage(self, frame):
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return QImage(rgb.data, frame.shape[1], frame.shape[0], 3 * frame.shape[1], QImage.Format.Format_RGB888).copy()
-
-    def _refresh_adjusted_frame(self):
-        if self.base_frame is None: return
-        if self.brightness == 0 and abs(self.contrast - 1.0) < 0.001:
-            self.adjusted_qimage = self.base_qimage
-        else:
-            adjusted = cv2.convertScaleAbs(self.base_frame, alpha=self.contrast, beta=self.brightness)
-            self.adjusted_qimage = self._frame_to_qimage(adjusted)
-        self.video_widget.set_frame(self.adjusted_qimage)
-
-    def on_slider_pressed(self): self.is_slider_dragging = True
-
-    def on_slider_value_changed(self, value):
-        self.spin_frame.blockSignals(True)
-        self.spin_frame.setValue(value)
-        self.spin_frame.blockSignals(False)
-        if not self.is_slider_dragging: self.seek_frame(value, absolute=True)
-
-    def on_slider_released(self):
-        self.is_slider_dragging = False
-        self.seek_frame(self.slider.value(), absolute=True)
-
-    def on_frame_spin_finished(self):
-        if self.cap:
-            val = self.spin_frame.value()
-            self.slider.blockSignals(True)
-            self.slider.setValue(val)
-            self.slider.blockSignals(False)
-            self.seek_frame(val, absolute=True)
-
-    def on_adjustment_changed(self):
-        self.brightness = self.slider_brightness.value()
-        self.contrast = self.slider_contrast.value() / 100.0
-        self._refresh_adjusted_frame()
-        self.render_frame()
-
-    def on_keep_calib_toggled(self, checked):
-        self.show_calib_line = checked
-        self.render_frame()
-
     def on_video_moved(self, x, y):
         if not (x == -1.0 and y == -1.0):
             snap_dist = 15.0 / self.video_widget.zoom_level
@@ -1250,6 +1353,8 @@ class MainWindow(QMainWindow):
                         
             if snap_pt: self.mouse_curr_pos = snap_pt
             else: self.mouse_curr_pos = (x, y)
+        else:
+            self.mouse_curr_pos = None
         self.render_frame()
 
     def render_frame(self):
@@ -1298,7 +1403,7 @@ class MainWindow(QMainWindow):
         self.video_widget.set_overlay_state(
             mode=self.state,
             calib_pt1=self.calib_pt1,
-            calib_line=self.calib_line if self.show_calib_line else None,
+            calib_line=self.calib_line,
             coord_origin=self.coord_origin,
             coord_angle=self.coord_angle,
             measure_pt1=self.measure_pt1,
@@ -1313,7 +1418,8 @@ class MainWindow(QMainWindow):
             all_trails=all_trails,
             scale_factor=self.scale_factor,
             physics_unit=self.physics_unit,
-            grid_size=self.grid_size
+            grid_size=self.grid_size,
+            show_overlays=self.show_overlays
         )
         self.update_highlight()
 
@@ -1464,7 +1570,7 @@ class MainWindow(QMainWindow):
                 'c2_str': self.get_formatted_coords(p2)
             }
             self.measure_pt1 = None
-            self.set_state("IDLE")
+            self.set_state("MEASURE_1")
             
         elif self.state == "MARKING":
             if not self.coord_origin:
@@ -1571,7 +1677,7 @@ class MainWindow(QMainWindow):
         self.plot_y.autoRange()
 
     def export_current_frame(self):
-        if not self.cap or self.current_frame_idx < 0:
+        if not self.video_path or self.current_frame_idx < 0:
             QMessageBox.warning(self, "无法导出", "请先加载视频并定位到需要导出的帧。")
             return
         if self.play_timer.isActive(): self.toggle_play()
@@ -1583,10 +1689,12 @@ class MainWindow(QMainWindow):
         lower_name = filename.lower()
         if not lower_name.endswith((".png", ".jpg", ".jpeg", ".bmp")): filename += ".png"
 
-        old_idx = self.current_frame_idx
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, old_idx)
-        ret, raw_frame = self.cap.read()
-        self.decoder_next_frame_idx = old_idx + 1
+        # 原画导出：直接从磁盘读取 100% 原始分辨率无损导出
+        cap = cv2.VideoCapture(self.video_path)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame_idx)
+        ret, raw_frame = cap.read()
+        cap.release()
+
         if not ret:
             QMessageBox.critical(self, "导出失败", "无法从视频中读取当前帧。")
             return
@@ -1771,6 +1879,18 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             QMessageBox.critical(self, "导入失败", f"读取 Excel 文件出错：\n{str(e)}")
+
+    def closeEvent(self, event):
+        """退出时优雅结束后台解码线程"""
+        if self.play_timer.isActive():
+            self.play_timer.stop()
+        self.decoder_worker.stop()
+        event.accept()
+
+
+# ==========================================================
+# 4. 程序入口
+# ==========================================================
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
