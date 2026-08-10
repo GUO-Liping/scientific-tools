@@ -2848,11 +2848,15 @@ class OBSAnalyzerGUI(QMainWindow):
         pl.addWidget(self.combo_nperseg, 0, 1)
 
         pl.addWidget(QLabel("显示 Fmin (Hz):"), 1, 0)
-        self.spin_psd_fmin = QDoubleSpinBox(); self.spin_psd_fmin.setValue(self.config["psd"]["display_fmin_hz"])
+        self.spin_psd_fmin = QDoubleSpinBox()
+        self.spin_psd_fmin.setRange(0.001, 10000.0)  # 解除 99.99 限制
+        self.spin_psd_fmin.setValue(self.config["psd"]["display_fmin_hz"])
         pl.addWidget(self.spin_psd_fmin, 1, 1)
 
         pl.addWidget(QLabel("显示 Fmax (Hz):"), 2, 0)
-        self.spin_psd_fmax = QDoubleSpinBox(); self.spin_psd_fmax.setValue(self.config["psd"]["display_fmax_hz"])
+        self.spin_psd_fmax = QDoubleSpinBox()
+        self.spin_psd_fmax.setRange(0.001, 10000.0)  # 解除 99.99 限制
+        self.spin_psd_fmax.setValue(self.config["psd"]["display_fmax_hz"])
         pl.addWidget(self.spin_psd_fmax, 2, 1)
 
         self.chk_show_depth_psd = QCheckBox("在PSD图中显示水深曲线及右侧坐标")
